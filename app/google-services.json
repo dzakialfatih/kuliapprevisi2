@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "386334786161",
+    "project_id": "kuliapp",
+    "storage_bucket": "kuliapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:386334786161:android:32dd031a1e89101b3a51d0",
+        "android_client_info": {
+          "package_name": "com.example.kuliapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBewZtKwq79Z2-_lYp_DU6elOFkIEtoTl4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,119 @@
+<resources>
+    <string name="app_name">KuliApp</string>
+
+    <!-- Auth Strings -->
+    <string name="login">Masuk</string>
+    <string name="register">Daftar</string>
+    <string name="phone_number">Nomor Telepon</string>
+    <string name="whatsapp_number">Nomor WhatsApp</string>
+    <string name="password">Kata Sandi</string>
+    <string name="confirm_password">Konfirmasi Kata Sandi</string>
+    <string name="full_name">Nama Lengkap</string>
+    <string name="customer">Pelanggan</string>
+    <string name="worker">Kuli</string>
+    <string name="dont_have_account">Belum punya akun?</string>
+    <string name="already_have_account">Sudah punya akun?</string>
+    <string name="register_account">Daftar Akun</string>
+    <string name="app_logo">Logo Aplikasi</string>
+
+    <!-- Validation Messages -->
+    <string name="error_empty_field">Bidang ini tidak boleh kosong</string>
+    <string name="error_password_too_short">Kata sandi minimal 6 karakter</string>
+    <string name="error_passwords_dont_match">Kata sandi tidak cocok</string>
+    <string name="error_invalid_phone">Nomor telepon tidak valid</string>
+    <string name="login_success">Login berhasil</string>
+    <string name="register_success">Pendaftaran berhasil</string>
+    <string name="error_login">Login gagal. Silakan coba lagi</string>
+    <string name="error_register">Pendaftaran gagal. Silakan coba lagi</string>
+
+    <!-- User Types -->
+    <string name="select_user_type">Pilih jenis pengguna</string>
+
+
+    <string name="view_all">Lihat semua</string>
+    <string name="recent_orders">Kuli sebelumnya</string>
+    <string name="hello_customer">Selamat Datang di KuliApp</string>
+    <string name="pending_reviews">Belum kasih rating nih</string>
+    <string name="search_worker">Bisa Cari Kuli Disini</string>
+    <string name="search_nearby">Cari Terdekat</string>
+    <string name="search_hint">Cari disini</string>
+    <string name="find_workers_subtitle">yaaaaaaaaaaaaaaa</string>
+
+
+    <!-- Dashboard -->
+    <string name="welcome_user">Selamat datang, %1$s!</string>
+    <string name="find_workers_near_you">Temukan Kuli terdekat untuk menyelesaikan pekerjaan Anda.</string>
+    <string name="find_worker">Cari Kuli</string>
+    <string name="unrated_workers">Kuli Belum Dirating</string>
+    <string name="no_unrated_workers">Tidak ada Kuli yang belum dirating</string>
+    <string name="recent_jobs">Pekerjaan Terbaru</string>
+    <string name="no_recent_jobs">Belum ada pekerjaan terbaru</string>
+    <string name="rate_now">Kasih Rating</string>
+    <string name="completed">Selesai</string>
+    <string name="ongoing">Sedang Berjalan</string>
+    <string name="profile">Profil</string>
+    <string name="worker_photo">Foto Kuli</string>
+
+    <!-- Worker List -->
+    <string name="available_workers">Kuli Yang Tersedia</string>
+    <string name="search_location">Cari lokasi…</string>
+    <string name="no_workers_found">Belum ada Kuli di lokasi ini</string>
+    <string name="hire">Pesan</string>
+    <string name="filter_by">Filter berdasarkan:</string>
+    <string name="rating">Rating</string>
+    <string name="distance">Jarak</string>
+    <!-- Strings used for fragments for navigation -->
+    <string name="first_fragment_label">First Fragment</string>
+    <string name="second_fragment_label">Second Fragment</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+
+    <!-- Add these to your strings.xml file -->
+    <string name="profile_image_description">Profile picture</string>
+    <string name="user_name">User Name</string>
+    <string name="profile_title">My Profile</string>
+    <string name="name_hint">Full Name</string>
+    <string name="phone_hint">Phone Number/WhatsApp</string>
+    <string name="address_hint">Address (e.g., Bekasi)</string>
+    <string name="edit">Edit</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="profile_saved">Profile saved successfully</string>
+    <string name="error_name_required">Name is required</string>
+    <string name="error_phone_required">Phone number is required</string>
+    <string name="error_phone_invalid">Please enter a valid phone number</string>
+    <string name="error_address_required">Address is required</string>
+    <string name="back_button_description">Back button</string>
+
+    <!-- New strings for rating dialog -->
+    <string name="rate_worker">Beri Rating Pekerja</string>
+    <string name="your_rating">Berikan Rating</string>
+    <string name="your_review">Komentar Anda (Opsional)</string>
+    <string name="review_hint">Berikan komentar tentang pengalaman Anda dengan pekerja ini...</string>
+    <string name="submit">Kirim</string>
+    <string name="please_provide_rating">Mohon berikan rating</string>
+    <string name="rating_submitted_successfully">Rating berhasil dikirim</string>
+
+
+    <!-- Worker Dashboard -->
+    <string name="edit_profile">Edit Profil</string>
+    <string name="profile_picture">Foto Profil</string>
+    <string name="tap_to_change">Tap untuk ganti foto</string>
+    <string name="my_profile">Profil Saya</string>
+    <string name="name">Nama</string>
+    <string name="domicile">Domisili</string>
+    <string name="price">Harga</string>
+    <string name="description">Deskripsi</string>
+    <string name="my_rating">Rating Saya</string>
+    <string name="availability_status">Status Ketersediaan</string>
+    <string name="status_available">Status: Tersedia</string>
+    <string name="status_unavailable">Status: Tidak Tersedia</string>
+    <string name="availability_explanation">Aktifkan status ini agar Anda dapat menerima pesanan. Jika nonaktif, profil Anda tidak akan muncul dalam pencarian.</string>
+    <string name="logout">Keluar</string>
+    <string name="logout_confirmation">Apakah Anda yakin ingin keluar dari aplikasi?</string>
+    <string name="profile_updated">Profil berhasil diperbarui</string>
+    <string name="profile_picture_updated">Foto profil berhasil diubah</string>
+    <string name="status_updated_available">Anda sekarang dapat menerima pesanan</string>
+    <string name="status_updated_unavailable">Anda tidak menerima pesanan</string>
+    <string name="all_fields_required">Semua kolom harus diisi</string>
+</resources>
