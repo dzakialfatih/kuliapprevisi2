@@ -6,6 +6,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.View
 import android.view.Window
@@ -45,7 +47,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var unratedWorkerAdapter: UnratedWorkerAdapter
     private lateinit var recentJobAdapter: RecentJobAdapter
-
+    private val handler = Handler(Looper.getMainLooper())
     // Flag untuk menggunakan dummy data atau tidak
     private val useDummyData = false // Set ke false untuk menggunakan Firebase
     private var recentJobsListener: ListenerRegistration? = null
@@ -525,6 +527,8 @@ class CustomerDashboardActivity : AppCompatActivity() {
         // Cleanup existing listener
         recentJobsListener?.remove()
 
+        Log.d(TAG, "Setting up recent jobs listener for user: $currentUserId")
+
         recentJobsListener = firestore.collection(COLLECTION_JOBS)
             .whereEqualTo("customerId", currentUserId)
             .whereEqualTo("status", "completed")
@@ -536,20 +540,27 @@ class CustomerDashboardActivity : AppCompatActivity() {
                     return@addSnapshotListener
                 }
 
+                Log.d(TAG, "Recent jobs listener triggered, documents: ${snapshot?.size()}")
+
                 val recentJobs = mutableListOf<Job>()
                 snapshot?.documents?.forEach { document ->
                     val job = document.toObject(Job::class.java)?.copy(id = document.id)
                     job?.let {
-                        // Filter jobs yang sudah di-rating
+                        Log.d(TAG, "Job: ${it.id}, rating: ${it.rating}, description: ${it.description}")
+                        // Filter jobs yang sudah di-rating (rating > 0)
                         if (it.rating > 0f) {
                             recentJobs.add(it)
                         }
                     }
                 }
 
+                Log.d(TAG, "Found ${recentJobs.size} rated recent jobs")
+
                 // Update UI dengan data terbaru
                 val finalJobs = recentJobs.take(10)
-                updateRecentJobsList(finalJobs)
+                runOnUiThread {
+                    updateRecentJobsList(finalJobs)
+                }
             }
     }
     // Dummy data functions
@@ -773,16 +784,10 @@ class CustomerDashboardActivity : AppCompatActivity() {
             return
         }
 
-        Log.d(TAG, "Submitting rating: $rating for worker: ${worker.name} (${worker.id})")
+        Log.d(TAG, "Submitting rating for worker: ${worker.name}, rating: $rating")
 
-        // Validasi rating
-        if (rating < 1.0f || rating > 5.0f) {
-            Toast.makeText(this, "Rating harus antara 1-5 bintang", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // Create rating object dengan ID yang unik
-        val ratingId = "${currentUserId}_${worker.id}_${System.currentTimeMillis()}"
+        // Create rating object
+        val ratingId = firestore.collection(COLLECTION_RATINGS).document().id
         val ratingObj = Rating(
             id = ratingId,
             workerId = worker.id,
@@ -797,68 +802,46 @@ class CustomerDashboardActivity : AppCompatActivity() {
         // Show loading
         dialog.setCancelable(false)
 
-        // Cek apakah user sudah pernah rating worker ini untuk job yang sama
+        // Submit rating to Firebase dengan urutan yang benar
         firestore.collection(COLLECTION_RATINGS)
-            .whereEqualTo("workerId", worker.id)
-            .whereEqualTo("customerId", currentUserId)
-            .get()
-            .addOnSuccessListener { existingRatings ->
-                // Cek apakah ada rating untuk kombinasi job yang sama
-                val hasExistingRating = existingRatings.documents.any { doc ->
-                    val existingRating = doc.toObject(Rating::class.java)
-                    // Bisa tambahkan logic lebih spesifik untuk mengecek job yang sama
-                    existingRating != null
-                }
+            .document(ratingId)
+            .set(ratingObj)
+            .addOnSuccessListener {
+                Log.d(TAG, "Rating saved successfully")
 
-                if (hasExistingRating && !useDummyData) {
-                    dialog.dismiss()
-                    Toast.makeText(this, "Anda sudah memberikan rating untuk pekerja ini", Toast.LENGTH_SHORT).show()
-                    return@addOnSuccessListener
-                }
+                // PERBAIKAN: Update job rating terlebih dahulu
+                updateJobRating(worker, rating) { jobUpdateSuccess ->
+                    if (jobUpdateSuccess) {
+                        Log.d(TAG, "Job rating updated successfully")
 
-                // Submit rating ke Firebase
-                firestore.collection(COLLECTION_RATINGS)
-                    .document(ratingId)
-                    .set(ratingObj)
-                    .addOnSuccessListener {
-                        Log.d(TAG, "Rating saved successfully: $ratingId")
+                        // Update worker's overall rating
+                        updateWorkerRating(worker.id) {
+                            Log.d(TAG, "Worker rating updated successfully")
 
-                        // Update job status dengan rating
-                        updateJobRating(worker, rating) { jobUpdateSuccess ->
-                            if (jobUpdateSuccess) {
-                                Log.d(TAG, "Job rating updated, now updating worker rating")
+                            dialog.dismiss()
+                            Toast.makeText(
+                                this,
+                                getString(R.string.rating_submitted_successfully),
+                                Toast.LENGTH_SHORT
+                            ).show()
 
-                                // Update worker's overall rating
-                                updateWorkerRating(worker.id) {
-                                    dialog.dismiss()
-                                    Toast.makeText(
-                                        this,
-                                        "Rating berhasil disimpan! Terima kasih atas feedback Anda.",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-
-                                    Log.d(TAG, "Rating process completed successfully")
-                                }
-                            } else {
-                                // Tetap update worker rating meskipun job update gagal
-                                Log.w(TAG, "Job rating update failed, but continuing with worker rating update")
-                                updateWorkerRating(worker.id) {
-                                    dialog.dismiss()
-                                    Toast.makeText(this, "Rating disimpan dengan beberapa masalah", Toast.LENGTH_SHORT).show()
-                                }
-                            }
+                            // TAMBAHAN: Force refresh jika listener tidak trigger
+                            handler.postDelayed({
+                                Log.d(TAG, "Force refreshing recent jobs after rating")
+                                loadRecentJobsFromFirebase()
+                            }, 2000) // Delay 2 detik untuk memastikan Firestore sync
                         }
-                    }
-                    .addOnFailureListener { exception ->
+                    } else {
                         dialog.dismiss()
-                        Log.e(TAG, "Error submitting rating", exception)
-                        Toast.makeText(this, "Gagal mengirim rating: ${exception.message}", Toast.LENGTH_SHORT).show()
+                        Log.e(TAG, "Failed to update job rating")
+                        Toast.makeText(this, "Gagal menyimpan rating ke job", Toast.LENGTH_SHORT).show()
                     }
+                }
             }
             .addOnFailureListener { exception ->
                 dialog.dismiss()
-                Log.e(TAG, "Error checking existing ratings", exception)
-                Toast.makeText(this, "Gagal mengecek rating yang ada", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "Error submitting rating", exception)
+                Toast.makeText(this, "Gagal mengirim rating", Toast.LENGTH_SHORT).show()
             }
     }
 
@@ -978,22 +961,30 @@ class CustomerDashboardActivity : AppCompatActivity() {
     private fun updateJobRating(worker: Worker, rating: Float, callback: (Boolean) -> Unit) {
         val currentUserId = auth.currentUser?.uid ?: return
 
-        // PERBAIKAN: Pencarian job yang lebih spesifik menggunakan workerName
+        Log.d(TAG, "Updating job rating for worker: ${worker.name}, job description: ${worker.jobDescription}")
+
+        // Pencarian job yang lebih spesifik
         firestore.collection(COLLECTION_JOBS)
             .whereEqualTo("customerId", currentUserId)
-            .whereEqualTo("workerName", worker.name) // Gunakan workerName bukan workerId
+            .whereEqualTo("workerName", worker.name)
             .whereEqualTo("status", "completed")
             .whereEqualTo("description", worker.jobDescription)
             .get()
             .addOnSuccessListener { documents ->
+                Log.d(TAG, "Found ${documents.size()} matching jobs")
+
                 if (!documents.isEmpty) {
-                    // Cari job yang belum di-rating (rating = 0)
+                    // Cari job yang belum di-rating (rating = 0 atau null)
                     val unratedJob = documents.documents.find { doc ->
                         val job = doc.toObject(Job::class.java)
-                        job?.rating == 0f || job?.rating == null
+                        val jobRating = job?.rating ?: 0f
+                        Log.d(TAG, "Job ${doc.id} rating: $jobRating")
+                        jobRating == 0f
                     }
 
                     if (unratedJob != null) {
+                        Log.d(TAG, "Updating job ${unratedJob.id} with rating: $rating")
+
                         firestore.collection(COLLECTION_JOBS)
                             .document(unratedJob.id)
                             .update(
@@ -1003,24 +994,47 @@ class CustomerDashboardActivity : AppCompatActivity() {
                                 )
                             )
                             .addOnSuccessListener {
-                                Log.d(TAG, "Job rating updated successfully")
+                                Log.d(TAG, "Job rating updated successfully for job: ${unratedJob.id}")
                                 callback(true)
                             }
-                            .addOnFailureListener {
-                                Log.e(TAG, "Failed to update job rating")
+                            .addOnFailureListener { exception ->
+                                Log.e(TAG, "Failed to update job rating for job: ${unratedJob.id}", exception)
                                 callback(false)
                             }
                     } else {
                         Log.w(TAG, "No unrated job found for worker: ${worker.name}")
-                        callback(false)
+
+                        // TAMBAHAN: Coba ambil job pertama jika tidak ada yang rating 0
+                        val firstJob = documents.documents.firstOrNull()
+                        if (firstJob != null) {
+                            Log.d(TAG, "Using first job as fallback: ${firstJob.id}")
+                            firestore.collection(COLLECTION_JOBS)
+                                .document(firstJob.id)
+                                .update(
+                                    mapOf(
+                                        "rating" to rating,
+                                        "updatedAt" to Timestamp.now()
+                                    )
+                                )
+                                .addOnSuccessListener {
+                                    Log.d(TAG, "Fallback job rating updated successfully")
+                                    callback(true)
+                                }
+                                .addOnFailureListener {
+                                    Log.e(TAG, "Failed to update fallback job rating")
+                                    callback(false)
+                                }
+                        } else {
+                            callback(false)
+                        }
                     }
                 } else {
                     Log.w(TAG, "No jobs found for worker: ${worker.name}")
                     callback(false)
                 }
             }
-            .addOnFailureListener {
-                Log.e(TAG, "Error finding job to update rating")
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Error finding job to update rating", exception)
                 callback(false)
             }
     }
@@ -1047,7 +1061,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 }
 
                 val averageRating = if (count > 0) {
-                    String.format("%.2f", totalRating / count).toDouble()
+                    String.format(Locale.US, "%.2f", totalRating / count).toDouble()
                 } else {
                     0.0
                 }
@@ -1151,6 +1165,40 @@ class CustomerDashboardActivity : AppCompatActivity() {
             }
     }
 
+    private fun debugRecentJobs() {
+        val currentUserId = auth.currentUser?.uid ?: return
+
+        firestore.collection(COLLECTION_JOBS)
+            .whereEqualTo("customerId", currentUserId)
+            .whereEqualTo("status", "completed")
+            .get()
+            .addOnSuccessListener { documents ->
+                Log.d(TAG, "=== DEBUG RECENT JOBS ===")
+                documents.forEach { doc ->
+                    val job = doc.toObject(Job::class.java)
+                    Log.d(TAG, "Job ID: ${doc.id}")
+                    Log.d(TAG, "Worker Name: ${job.workerName}")
+                    Log.d(TAG, "Description: ${job.description}")
+                    Log.d(TAG, "Rating: ${job.rating}")
+                    Log.d(TAG, "Updated At: ${job.updatedAt}")
+                    Log.d(TAG, "---")
+                }
+            }
+    }
+
+    private fun forceRefreshRecentJobs() {
+        Log.d(TAG, "Force refreshing recent jobs...")
+
+        // Remove existing listener
+        recentJobsListener?.remove()
+
+        // Setup new listener
+        setupRecentJobsListener()
+
+        // Also load once manually
+        loadRecentJobsFromFirebase()
+    }
+
     private fun showEmptyUnratedWorkers() {
         binding.tvNoUnratedWorkers.visibility = View.VISIBLE
         binding.tvNoUnratedWorkers.visibility = View.VISIBLE
@@ -1183,6 +1231,9 @@ class CustomerDashboardActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        Log.d(TAG, "onResume: Refreshing data")
+        // Setup listener lagi jika hilang
+        setupRecentJobsListener()
         // Refresh data when returning to this activity
         loadUnratedWorkers()
         loadRecentJobs()
