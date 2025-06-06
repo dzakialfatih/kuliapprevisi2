@@ -165,41 +165,41 @@
     </LinearLayout>
 
     <!-- Review Section -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/your_review"
-        android:textColor="@color/primary_text"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:fontFamily="sans-serif-medium"
-        android:layout_marginBottom="8dp" />
+<!--    <TextView-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="@string/your_review"-->
+<!--        android:textColor="@color/primary_text"-->
+<!--        android:textSize="16sp"-->
+<!--        android:textStyle="bold"-->
+<!--        android:fontFamily="sans-serif-medium"-->
+<!--        android:layout_marginBottom="8dp" />-->
 
-    <androidx.cardview.widget.CardView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="2dp"
-        app:cardBackgroundColor="@color/surface"
-        android:layout_marginBottom="24dp">
+<!--    <androidx.cardview.widget.CardView-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        app:cardCornerRadius="12dp"-->
+<!--        app:cardElevation="2dp"-->
+<!--        app:cardBackgroundColor="@color/surface"-->
+<!--        android:layout_marginBottom="24dp">-->
 
-        <EditText
-            android:id="@+id/etReview"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="100dp"
-            android:background="@android:color/transparent"
-            android:gravity="top|start"
-            android:hint="@string/review_hint"
-            android:importantForAutofill="no"
-            android:inputType="textMultiLine|textCapSentences"
-            android:maxLines="5"
-            android:padding="16dp"
-            android:textSize="14sp"
-            android:textColor="@color/primary_text"
-            android:textColorHint="@color/secondary_text"
-            android:fontFamily="sans-serif" />
-    </androidx.cardview.widget.CardView>
+<!--        <EditText-->
+<!--            android:id="@+id/etReview"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:minHeight="100dp"-->
+<!--            android:background="@android:color/transparent"-->
+<!--            android:gravity="top|start"-->
+<!--            android:hint="@string/review_hint"-->
+<!--            android:importantForAutofill="no"-->
+<!--            android:inputType="textMultiLine|textCapSentences"-->
+<!--            android:maxLines="5"-->
+<!--            android:padding="16dp"-->
+<!--            android:textSize="14sp"-->
+<!--            android:textColor="@color/primary_text"-->
+<!--            android:textColorHint="@color/secondary_text"-->
+<!--            android:fontFamily="sans-serif" />-->
+<!--    </androidx.cardview.widget.CardView>-->
 
     <!-- Action Buttons -->
     <LinearLayout

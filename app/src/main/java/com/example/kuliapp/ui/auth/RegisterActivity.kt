@@ -139,12 +139,11 @@ class RegisterActivity : AppCompatActivity() {
             }
     }
 
-    private fun saveUserToFirestore(userId: String, name: String, phoneNumber: String, email: String) {
+    private fun saveUserToFirestore(customerId: String, customerName: String, phoneNumber: String, email: String) {
         val userData = hashMapOf<String, Any>(
-            "userId" to userId,
-            "name" to name,
+            "customerId" to customerId,
+            "customerName" to customerName,
             "phoneNumber" to phoneNumber,
-//            "email" to email,
             "userType" to selectedUserType.name,
             "createdAt" to com.google.firebase.Timestamp.now(),
             "updatedAt" to com.google.firebase.Timestamp.now(),
@@ -153,13 +152,24 @@ class RegisterActivity : AppCompatActivity() {
 
         // Tambahkan field khusus berdasarkan tipe user
         if (selectedUserType == UserType.WORKER) {
-            userData["skills"] = arrayListOf<String>() // Gunakan ArrayList instead of emptyList
+            // GENERATE UNIQUE WORKER ID
+            val workerId = generateWorkerUniqueId(phoneNumber)
+
+            userData["workerId"] = workerId // Tambahkan field id untuk Worker model
+            userData["email"] = email // Tambahkan email untuk Worker model
+            userData["phone"] = phoneNumber // Tambahkan phone untuk Worker model
+            userData["location"] = "" // Sesuai dengan Worker model
+            userData["experience"] = "" // Sesuai dengan Worker model
+            userData["skills"] = arrayListOf<String>()
             userData["rating"] = 0.0
+            userData["ratingCount"] = 0 // Tambahkan ratingCount
             userData["totalJobs"] = 0
             userData["completedJobs"] = 0
             userData["isAvailable"] = true
             userData["hourlyRate"] = 0.0
+            userData["price"] = 0L // Sesuai dengan Worker model (Long)
             userData["profileImageUrl"] = ""
+            userData["photo"] = "" // Sesuai dengan Worker model
             userData["description"] = ""
         } else {
             userData["totalOrders"] = 0
@@ -171,7 +181,7 @@ class RegisterActivity : AppCompatActivity() {
         val collectionName = if (selectedUserType == UserType.CUSTOMER) "customers" else "workers"
 
         firestore.collection(collectionName)
-            .document(userId)
+            .document(customerId)
             .set(userData, SetOptions.merge())
             .addOnSuccessListener {
                 showLoading(false)
@@ -179,10 +189,15 @@ class RegisterActivity : AppCompatActivity() {
                 // Simpan informasi pengguna ke preferensi lokal
                 prefManager.setUserLoggedIn(true)
                 prefManager.setUserType(selectedUserType.name)
-                prefManager.setString("user_id", userId)
-                prefManager.setString("user_name", name)
+                prefManager.setString("user_id", customerId)
+                prefManager.setString("user_name", customerName)
                 prefManager.setString("user_phone", phoneNumber)
-//                prefManager.setString("user_email", email)
+
+                // SIMPAN WORKER ID JIKA USER ADALAH WORKER
+                if (selectedUserType == UserType.WORKER) {
+                    val workerId = generateWorkerUniqueId(phoneNumber)
+                    prefManager.setString("worker_id", workerId)
+                }
 
                 Toast.makeText(this, "Registrasi berhasil!", Toast.LENGTH_SHORT).show()
 
@@ -202,6 +217,13 @@ class RegisterActivity : AppCompatActivity() {
                 // Hapus user dari Firebase Auth jika gagal menyimpan ke Firestore
                 firebaseAuth.currentUser?.delete()
             }
+    }
+
+    // METODE 1: Generate ID berdasarkan timestamp + phone number
+    private fun generateWorkerUniqueId(phoneNumber: String): String {
+        val timestamp = System.currentTimeMillis()
+        val phoneLastFour = phoneNumber.takeLast(4)
+        return "WKR${phoneLastFour}${timestamp}"
     }
 
     private fun showLoading(show: Boolean) {

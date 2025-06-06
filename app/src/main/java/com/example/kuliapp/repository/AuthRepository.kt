@@ -37,7 +37,7 @@ class AuthRepository {
     // Save user to Firestore
     suspend fun saveUserToFirestore(user: User) {
         firestore.collection("users")
-            .document(user.id)
+            .document(user.customerId)
             .set(user)
             .await()
     }

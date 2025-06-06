@@ -12,6 +12,8 @@ import com.example.kuliapp.R
 import com.example.kuliapp.databinding.ActivityWorkerDashboardBinding
 import com.example.kuliapp.models.Worker
 import com.example.kuliapp.ui.auth.LoginActivity
+import com.example.kuliapp.ui.customer.CustomerDashboardActivity
+import com.example.kuliapp.ui.customer.CustomerDashboardActivity.Companion
 import com.example.kuliapp.ui.profile.EditProfileDialogFragment
 import com.example.kuliapp.utils.PreferenceManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -63,14 +65,51 @@ class WorkerDashboardActivity : AppCompatActivity() {
         preferenceManager = PreferenceManager(this)
 
         // Setup UI
+        setupSwipeRefresh()
         setupListeners()
         loadWorkerData()
     }
 
-    private fun loadWorkerData() {
+    private fun setupSwipeRefresh() {
+        // Setup SwipeRefreshLayout
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            refreshData()
+        }
+
+        // Customize refresh indicator colors
+        binding.swipeRefreshLayout.setColorSchemeResources(
+            R.color.primary,
+            R.color.accent,
+            R.color.primary_dark
+        )
+    }
+
+    private fun refreshData() {
+        Log.d(TAG, "Refreshing dashboard data...")
+
+        binding.swipeRefreshLayout.isRefreshing = true
+
+        val totalLoaders = 1
+        var loadingCount = 0
+
+        val onLoadComplete = {
+            loadingCount++
+            if (loadingCount >= totalLoaders) {
+                binding.swipeRefreshLayout.isRefreshing = false
+                Toast.makeText(this, "Data berhasil diperbarui", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 🔁 Panggil dengan callback
+        loadWorkerData(onComplete = onLoadComplete)
+    }
+
+
+    private fun loadWorkerData(onComplete: (() -> Unit)? = null) {
         val userId = auth.currentUser?.uid
         if (userId == null) {
             redirectToLogin()
+            onComplete?.invoke()
             return
         }
 
@@ -83,7 +122,6 @@ class WorkerDashboardActivity : AppCompatActivity() {
                 showLoading(false)
                 if (document.exists()) {
                     try {
-                        // Worker sudah ada, load data dengan error handling
                         currentWorker = document.toObject(Worker::class.java)
                         currentWorker?.let { worker ->
                             updateUI(worker)
@@ -91,7 +129,6 @@ class WorkerDashboardActivity : AppCompatActivity() {
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error deserializing worker data", e)
-                        // Jika gagal deserialize, coba manual mapping
                         try {
                             currentWorker = createWorkerFromDocument(document.data ?: emptyMap())
                             currentWorker?.let { worker ->
@@ -105,21 +142,27 @@ class WorkerDashboardActivity : AppCompatActivity() {
                         }
                     }
                 } else {
-                    // Worker belum ada, buat data default
                     createDefaultWorkerProfile(userId)
                 }
+
+                // ✅ Callback setelah berhasil/sudah selesai
+                onComplete?.invoke()
             }
             .addOnFailureListener { exception ->
                 showLoading(false)
                 Log.e(TAG, "Error loading worker data", exception)
                 Toast.makeText(this, "Gagal memuat data profil", Toast.LENGTH_SHORT).show()
+
+                // ✅ Callback meskipun gagal
+                onComplete?.invoke()
             }
     }
+
 
     // Helper function untuk membuat Worker dari Map secara manual
     private fun createWorkerFromDocument(data: Map<String, Any>): Worker {
         return Worker(
-            id = data["id"] as? String ?: "",
+            workerId = data["id"] as? String ?: "",
             name = data["name"] as? String ?: "",
             email = data["email"] as? String ?: "",
             phone = data["phone"] as? String ?: "",
@@ -127,7 +170,7 @@ class WorkerDashboardActivity : AppCompatActivity() {
             experience = data["experience"] as? String ?: "",
             price = (data["price"] as? Number)?.toLong() ?: 0L,
             photo = data["photo"] as? String ?: "",
-            rating = (data["rating"] as? Number)?.toDouble() ?: 0.0,
+            rating = ((data["rating"] as? Number)?.toDouble() ?: 0.0f) as Float,
             ratingCount = (data["ratingCount"] as? Number)?.toInt() ?: 0,
             isAvailable = data["isAvailable"] as? Boolean ?: true,
 //            createdAt = convertToTimestamp(data["createdAt"]),
@@ -163,7 +206,7 @@ class WorkerDashboardActivity : AppCompatActivity() {
         }
 
         val defaultWorker = Worker(
-            id = userId,
+            workerId = userId,
             name = userName,
             email = userEmail,
             phone = "",
@@ -171,7 +214,7 @@ class WorkerDashboardActivity : AppCompatActivity() {
             experience = "",
             price = 0,
             photo = "",
-            rating = 0.0,
+            rating = 0.0F,
             ratingCount = 0,
             isAvailable = true,
 //            createdAt = Timestamp.now(), // Gunakan Timestamp.now()
@@ -429,3 +472,4 @@ class WorkerDashboardActivity : AppCompatActivity() {
         // binding.progressBar.visibility = if (show) View.VISIBLE else View.GONE
     }
 }
+

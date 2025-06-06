@@ -66,4 +66,35 @@
     <color name="status_pending">#FF9800</color>
     <color name="status_cancelled">#F44336</color>
     <color name="status_in_progress">#2196F3</color>
+
+    <!-- Excellent rating (4.5+) - Bright Green -->
+    <color name="rating_excellent">#4CAF50</color>
+
+    <!-- Good rating (4.0-4.4) - Light Green -->
+    <color name="rating_good">#8BC34A</color>
+
+    <!-- Average rating (3.0-3.9) - Orange -->
+    <color name="rating_average">#FF9800</color>
+
+    <!-- Poor rating (0.1-2.9) - Red -->
+    <color name="rating_poor">#F44336</color>
+
+    <!-- No rating (0) - Gray -->
+    <color name="rating_none">#9E9E9E</color>
+
+    <!-- Alternative color variations (optional) -->
+
+    <!-- Darker variants for better contrast -->
+    <color name="rating_excellent_dark">#388E3C</color>
+    <color name="rating_good_dark">#689F38</color>
+    <color name="rating_average_dark">#F57C00</color>
+    <color name="rating_poor_dark">#D32F2F</color>
+    <color name="rating_none_dark">#616161</color>
+
+    <!-- Lighter variants for backgrounds -->
+    <color name="rating_excellent_light">#C8E6C9</color>
+    <color name="rating_good_light">#DCEDC8</color>
+    <color name="rating_average_light">#FFE0B2</color>
+    <color name="rating_poor_light">#FFCDD2</color>
+    <color name="rating_none_light">#F5F5F5</color>
 </resources>

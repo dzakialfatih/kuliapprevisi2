@@ -39,7 +39,7 @@ class FirebaseRepository {
     suspend fun createOrUpdateWorker(worker: Worker): Result<Worker> {
         return try {
             firestore.collection(COLLECTION_WORKERS)
-                .document(worker.id)
+                .document(worker.workerId)
                 .set(worker)
                 .await()
             Result.success(worker)
@@ -106,14 +106,14 @@ class FirebaseRepository {
     // Rating Operations
     suspend fun submitRating(rating: Rating): Result<Rating> {
         return try {
-            val ratingId = if (rating.id.isEmpty()) {
+            val ratingId = if (rating.workerId.isEmpty()) {
                 firestore.collection(COLLECTION_RATINGS).document().id
             } else {
-                rating.id
+                rating.workerId
             }
 
             val ratingWithId = rating.copy(
-                id = ratingId,
+                workerId = ratingId,
                 createdAt = Timestamp.now()
             )
 
@@ -155,9 +155,9 @@ class FirebaseRepository {
                 val ratings = ratingsResult.getOrNull() ?: emptyList()
 
                 val averageRating = if (ratings.isNotEmpty()) {
-                    ratings.map { it.rating.toDouble() }.average()
+                    ratings.map { it.rating }.average().toFloat()  // rating diasumsikan Float
                 } else {
-                    0.0
+                    0f
                 }
 
                 firestore.collection(COLLECTION_WORKERS)
@@ -176,17 +176,18 @@ class FirebaseRepository {
         }
     }
 
+
     // Job Operations
     suspend fun createJob(job: Job): Result<Job> {
         return try {
-            val jobId = if (job.id.isEmpty()) {
+            val jobId = if (job.workerId.isEmpty()) {
                 firestore.collection(COLLECTION_JOBS).document().id
             } else {
-                job.id
+                job.workerId
             }
 
             val jobWithId = job.copy(
-                id = jobId,
+                workerId = jobId,
                 _createdAt = Timestamp.now(),
                 _updatedAt = Timestamp.now()
             )
@@ -254,7 +255,7 @@ class FirebaseRepository {
                 .await()
 
             val jobs = documents.map {
-                it.toObject(Job::class.java).copy(id = it.id)
+                it.toObject(Job::class.java).copy(workerId = it.id)
             }
 
             Result.success(jobs)
@@ -279,7 +280,7 @@ class FirebaseRepository {
                 .await()
 
             val jobs = documents.map {
-                it.toObject(Job::class.java).copy(id = it.id)
+                it.toObject(Job::class.java).copy(workerId = it.id)
             }
 
             Result.success(jobs)
@@ -301,7 +302,7 @@ class FirebaseRepository {
                 .await()
 
             val jobs = documents.map {
-                it.toObject(Job::class.java).copy(id = it.id)
+                it.toObject(Job::class.java).copy(workerId = it.id)
             }
 
             Result.success(jobs)

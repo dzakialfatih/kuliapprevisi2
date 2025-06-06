@@ -9,9 +9,14 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
 import android.view.Window
+import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ProgressBar
+import android.widget.RatingBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -29,6 +34,7 @@ import com.example.kuliapp.ui.profile.ProfileActivity
 import com.example.kuliapp.ui.worker.WorkerListActivity
 import com.example.kuliapp.utils.JobStatusManager
 import com.example.kuliapp.utils.PreferenceManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.BuildConfig
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
@@ -47,6 +53,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var unratedWorkerAdapter: UnratedWorkerAdapter
     private lateinit var recentJobAdapter: RecentJobAdapter
+    private val workerListeners = mutableListOf<ListenerRegistration>()
     private val handler = Handler(Looper.getMainLooper())
     // Flag untuk menggunakan dummy data atau tidak
     private val useDummyData = false // Set ke false untuk menggunakan Firebase
@@ -78,6 +85,11 @@ class CustomerDashboardActivity : AppCompatActivity() {
         setupRecentJobsListener()
     }
 
+    private fun showLoading(isLoading: Boolean) {
+        findViewById<FrameLayout>(R.id.loadingOverlay).visibility =
+            if (isLoading) View.VISIBLE else View.GONE
+    }
+
     private fun setupSwipeRefresh() {
         // Setup SwipeRefreshLayout
         binding.swipeRefreshLayout.setOnRefreshListener {
@@ -93,6 +105,16 @@ class CustomerDashboardActivity : AppCompatActivity() {
     }
 
     private fun refreshData() {
+
+        // Refresh daftar worker yang sudah dirating
+        loadRecentJobs()
+
+        // Refresh daftar worker yang belum dirating
+        loadUnratedWorkersFromFirebase()
+
+        // Refresh listener untuk perubahan real-time
+        setupRecentJobsListener()
+
         Log.d(TAG, "Refreshing dashboard data...")
 
         // Show refreshing indicator
@@ -137,8 +159,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
 
     private fun setupUI() {
         // Set user's name in welcome message
-        val userName = auth.currentUser?.displayName
-            ?: preferenceManager.getString("user_name")
+        val userName = preferenceManager.getString("user_name")
             ?: auth.currentUser?.email?.substringBefore("@")?.replaceFirstChar {
                 if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
             }
@@ -209,8 +230,6 @@ class CustomerDashboardActivity : AppCompatActivity() {
         }, 1000) // Delay 1 detik untuk simulasi loading
     }
 
-    private val workerListeners = mutableListOf<ListenerRegistration>()
-
     private fun loadUnratedWorkersFromFirebase(onComplete: (() -> Unit)? = null) {
         val currentUserId = auth.currentUser?.uid
         if (currentUserId == null) {
@@ -243,10 +262,10 @@ class CustomerDashboardActivity : AppCompatActivity() {
 
             // Untuk setiap job, setup realtime listener untuk worker-nya berdasarkan workerName
             for (job in jobs) {
-                Log.d(TAG, "Setting up listener for job: ${job.id}, workerName: ${job.workerName}")
+                Log.d(TAG, "Setting up listener for job: ${job.workerId}, workerName: ${job.workerName}")
 
                 if (job.workerName.isBlank()) {
-                    Log.w(TAG, "Invalid workerName for job: ${job.id}")
+                    Log.w(TAG, "Invalid workerName for job: ${job.workerId}")
                     completedQueries++
                     if (completedQueries == totalQueries) {
                         showLoadingUnrated(false)
@@ -500,7 +519,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 val recentJobs = mutableListOf<Job>()
 
                 for (document in documents) {
-                    val job = document.toObject(Job::class.java).copy(id = document.id)
+                    val job = document.toObject(Job::class.java).copy(workerId = document.id)
                     // Filter jobs yang sudah ada rating (rating > 0)
                     if (job.rating > 0f) {
                         recentJobs.add(job)
@@ -520,46 +539,38 @@ class CustomerDashboardActivity : AppCompatActivity() {
             }
     }
 
-
     private fun setupRecentJobsListener() {
-        val currentUserId = auth.currentUser?.uid ?: return
+        val userId = auth.currentUser?.uid ?: return
 
-        // Cleanup existing listener
+        // Cleanup listener sebelumnya jika ada
         recentJobsListener?.remove()
 
-        Log.d(TAG, "Setting up recent jobs listener for user: $currentUserId")
-
         recentJobsListener = firestore.collection(COLLECTION_JOBS)
-            .whereEqualTo("customerId", currentUserId)
+            .whereEqualTo("customerId", userId)
             .whereEqualTo("status", "completed")
             .orderBy("updatedAt", Query.Direction.DESCENDING)
-            .limit(20)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    Log.e(TAG, "Recent jobs listener failed", error)
+                    Log.e(TAG, "Error listening to recent jobs", error)
                     return@addSnapshotListener
                 }
 
-                Log.d(TAG, "Recent jobs listener triggered, documents: ${snapshot?.size()}")
-
-                val recentJobs = mutableListOf<Job>()
-                snapshot?.documents?.forEach { document ->
-                    val job = document.toObject(Job::class.java)?.copy(id = document.id)
-                    job?.let {
-                        Log.d(TAG, "Job: ${it.id}, rating: ${it.rating}, description: ${it.description}")
-                        // Filter jobs yang sudah di-rating (rating > 0)
-                        if (it.rating > 0f) {
-                            recentJobs.add(it)
+                snapshot?.let { querySnapshot ->
+                    val jobs = mutableListOf<Job>()
+                    for (document in querySnapshot.documents) {
+                        try {
+                            val job = document.toObject(Job::class.java)
+                            job?.let { jobs.add(it) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing job document", e)
                         }
                     }
-                }
 
-                Log.d(TAG, "Found ${recentJobs.size} rated recent jobs")
+                    // Update UI dengan data terbaru
+                    updateRecentJobsList(jobs)
 
-                // Update UI dengan data terbaru
-                val finalJobs = recentJobs.take(10)
-                runOnUiThread {
-                    updateRecentJobsList(finalJobs)
+                    // Log untuk debugging
+                    Log.d(TAG, "Recent jobs updated: ${jobs.size} jobs found")
                 }
             }
     }
@@ -570,10 +581,10 @@ class CustomerDashboardActivity : AppCompatActivity() {
         val dateFormat = SimpleDateFormat("dd MMMM yyyy", Locale("id", "ID"))
         return listOf(
             Worker(
-                id = "worker_1",
+                workerId = "worker_1",
                 name = "Budi Santoso",
                 photo = "",
-                rating = 4.2, // Rating existing worker, tapi job ini belum di-rating
+                rating = 4.2f, // Rating existing worker, tapi job ini belum di-rating
                 ratingCount = 5,
                 location = "Bekasi",
                 experience = "Pemasangan keramik dan perbaikan atap",
@@ -583,10 +594,10 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 phone = "6281234567890"
             ),
             Worker(
-                id = "worker_2",
+                workerId = "worker_2",
                 name = "Agus Purnomo",
                 photo = "",
-                rating = 4.5,
+                rating = 4.5f,
                 ratingCount = 8,
                 location = "Jakarta Timur",
                 experience = "Renovasi dan pengecatan",
@@ -596,10 +607,10 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 phone = "6281234567891"
             ),
             Worker(
-                id = "worker_3",
+                workerId = "worker_3",
                 name = "Slamet Riyadi",
                 photo = "",
-                rating = 4.8,
+                rating = 4.8f,
                 ratingCount = 12,
                 location = "Bekasi Timur",
                 experience = "Instalasi listrik dan perbaikan",
@@ -615,7 +626,6 @@ class CustomerDashboardActivity : AppCompatActivity() {
         val dateFormat = SimpleDateFormat("dd MMMM yyyy", Locale("id", "ID"))
         return listOf(
             Job(
-                id = "job_1",
                 workerId = "worker_4",
                 workerName = "Ahmad Wijaya",
                 workerPhoto = "",
@@ -627,7 +637,6 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 location = "Jakarta Timur"
             ),
             Job(
-                id = "job_2",
                 workerId = "worker_5",
                 workerName = "Dedi Cahyono",
                 workerPhoto = "",
@@ -639,7 +648,6 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 location = "Bekasi Barat"
             ),
             Job(
-                id = "job_3",
                 workerId = "worker_6",
                 workerName = "Eko Prasetyo",
                 workerPhoto = "",
@@ -661,7 +669,6 @@ class CustomerDashboardActivity : AppCompatActivity() {
         val currentUserId = auth.currentUser?.uid ?: return
 
         val completedJob = Job(
-            id = testJobId,
             customerId = currentUserId,
             customerName = "Test Customer",
             workerId = "worker_1",
@@ -709,12 +716,16 @@ class CustomerDashboardActivity : AppCompatActivity() {
     }
 
     private fun updateRecentJobsList(jobs: List<Job>) {
-        if (jobs.isEmpty()) {
-            showEmptyRecentJobs()
-        } else {
-            binding.tvNoRecentJobs.visibility = View.GONE
-            binding.rvRecentJobs.visibility = View.VISIBLE
+        runOnUiThread {
             recentJobAdapter.updateData(jobs)
+
+            // Show/hide empty state
+            if (jobs.isEmpty()) {
+                showEmptyRecentJobs()
+            } else {
+                binding.rvRecentJobs.visibility = View.VISIBLE
+                binding.layoutNoRecentJobs.visibility = View.GONE
+            }
         }
     }
 
@@ -754,7 +765,6 @@ class CustomerDashboardActivity : AppCompatActivity() {
 
         dialogBinding.btnSubmit.setOnClickListener {
             val rating = dialogBinding.ratingBar.rating
-            val review = dialogBinding.etReview.text.toString().trim()
 
             if (rating <= 0) {
                 Toast.makeText(this, getString(R.string.please_provide_rating), Toast.LENGTH_SHORT).show()
@@ -768,16 +778,16 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 // Refresh data
                 refreshData()
             } else {
-                submitRating(worker, rating, review, dialog)
+                submitRating(worker, rating, dialog)
             }
         }
 
         dialog.show()
     }
 
-    private fun submitRating(worker: Worker, rating: Float, review: String, dialog: Dialog) {
+    private fun submitRating(worker: Worker, rating: Float, dialog: Dialog) {
         val currentUserId = auth.currentUser?.uid
-        val currentUserName = auth.currentUser?.displayName ?: "Pengguna"
+        val currentUserName = preferenceManager.getString("user_name") ?: "Pengguna"
 
         if (currentUserId == null) {
             Toast.makeText(this, "Error: User not authenticated", Toast.LENGTH_SHORT).show()
@@ -789,12 +799,10 @@ class CustomerDashboardActivity : AppCompatActivity() {
         // Create rating object
         val ratingId = firestore.collection(COLLECTION_RATINGS).document().id
         val ratingObj = Rating(
-            id = ratingId,
-            workerId = worker.id,
+            workerId = worker.workerId,
             customerId = currentUserId,
             customerName = currentUserName,
             rating = rating,
-            review = review,
             date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
             createdAt = Timestamp.now()
         )
@@ -815,7 +823,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
                         Log.d(TAG, "Job rating updated successfully")
 
                         // Update worker's overall rating
-                        updateWorkerRating(worker.id) {
+                        updateWorkerRating(worker.workerId) {
                             Log.d(TAG, "Worker rating updated successfully")
 
                             dialog.dismiss()
@@ -845,44 +853,109 @@ class CustomerDashboardActivity : AppCompatActivity() {
             }
     }
 
-    private fun debugWorkerRatings(workerId: String) {
-        Log.d(TAG, "=== DEBUG WORKER RATINGS ===")
-        Log.d(TAG, "Worker ID: $workerId")
-
-        // Get worker data
-        firestore.collection(COLLECTION_WORKERS)
-            .document(workerId)
+    private fun updateWorkerRatingCount(workerId: String, callback: (Boolean) -> Unit) {
+        // 1. Ambil semua rating untuk worker ini
+        firestore.collection(COLLECTION_RATINGS)
+            .whereEqualTo("workerId", workerId)
             .get()
-            .addOnSuccessListener { workerDoc ->
-                val worker = workerDoc.toObject(Worker::class.java)
-                Log.d(TAG, "Worker: ${worker?.name}")
-                Log.d(TAG, "Current rating: ${worker?.rating}")
-                Log.d(TAG, "Current rating count: ${worker?.ratingCount}")
+            .addOnSuccessListener { documents ->
+                var totalRating = 0f
+                var count = 0
 
-                // Get all ratings for this worker
-                firestore.collection(COLLECTION_RATINGS)
-                    .whereEqualTo("workerId", workerId)
-                    .orderBy("createdAt", Query.Direction.DESCENDING)
-                    .get()
-                    .addOnSuccessListener { ratingDocs ->
-                        Log.d(TAG, "Found ${ratingDocs.size()} ratings:")
+                // 2. Hitung total rating dan jumlah rating
 
-                        var totalRating = 0.0
-                        var count = 0
+                for (document in documents) {
+                    val rating = (document.getDouble("rating") ?: 0.0).toFloat()
+                    totalRating += rating
+                    count++
+                }
 
-                        ratingDocs.documents.forEachIndexed { index, doc ->
-                            val rating = doc.toObject(Rating::class.java)
-                            rating?.let {
-                                Log.d(TAG, "${index + 1}. Rating: ${it.rating}, Customer: ${it.customerName}, Date: ${it.date}")
-                                totalRating += it.rating
-                                count++
-                            }
-                        }
 
-                        val calculatedAverage = if (count > 0) totalRating / count else 0.0
-                        Log.d(TAG, "Calculated average: $calculatedAverage (from $count ratings)")
-                        Log.d(TAG, "=== END DEBUG ===")
+                // 3. Hitung rata-rata rating
+                val averageRating = if (count > 0) totalRating / count else 0.0
+
+                // 4. Update data worker dengan rating baru
+                firestore.collection(COLLECTION_WORKERS)
+                    .document(workerId)
+                    .update(
+                        mapOf(
+                            "rating" to averageRating,
+                            "ratingCount" to count,
+                            "updatedAt" to Timestamp.now()
+                        )
+                    )
+                    .addOnSuccessListener {
+                        Log.d(TAG, "Worker rating updated successfully. New rating: $averageRating, Count: $count")
+                        callback(true)
                     }
+                    .addOnFailureListener { exception ->
+                        Log.e(TAG, "Error updating worker rating", exception)
+                        callback(false)
+                    }
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Error fetching ratings for worker", exception)
+                callback(false)
+            }
+    }
+
+    private fun updateJobRating(worker: Worker, rating: Float, callback: (Boolean) -> Unit) {
+        val userId = auth.currentUser?.uid ?: return
+
+        // Update job yang terkait dengan worker ini
+        firestore.collection(COLLECTION_JOBS)
+            .whereEqualTo("customerId", userId)
+            .whereEqualTo("workerId", worker.workerId)
+            .whereEqualTo("status", "completed")
+            .get()
+            .addOnSuccessListener { documents ->
+                val batch = firestore.batch()
+
+                for (document in documents) {
+                    val jobRef = firestore.collection(COLLECTION_JOBS).document(document.id)
+                    batch.update(jobRef, mapOf(
+                        "rating" to rating,
+                        "updatedAt" to Timestamp.now()
+                    ))
+                }
+
+                batch.commit()
+                    .addOnSuccessListener {
+                        callback(true)
+                    }
+                    .addOnFailureListener { exception ->
+                        Log.e(TAG, "Error updating job ratings", exception)
+                        callback(false)
+                    }
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Error fetching jobs for rating update", exception)
+                callback(false)
+            }
+    }
+
+    private fun debugWorkerRatings(workerId: String) {
+        firestore.collection(COLLECTION_RATINGS)
+            .whereEqualTo("workerId", workerId)
+            .get()
+            .addOnSuccessListener { documents ->
+                Log.d(TAG, "=== DEBUG WORKER RATINGS ===")
+                Log.d(TAG, "Worker ID: $workerId")
+                Log.d(TAG, "Total ratings found: ${documents.size()}")
+
+                var totalRating = 0.0
+                for ((index, document) in documents.withIndex()) {
+                    val rating = (document.getDouble("rating") ?: 0.0).toFloat()
+                    val customerName = document.getString("customerName") ?: "Unknown"
+                    val review = document.getString("review") ?: ""
+
+                    Log.d(TAG, "Rating ${index + 1}: $rating by $customerName - $review")
+                    totalRating += rating
+                }
+
+                val averageRating = if (documents.size() > 0) totalRating / documents.size() else 0.0
+                Log.d(TAG, "Average rating: $averageRating")
+                Log.d(TAG, "=== END DEBUG ===")
             }
     }
 
@@ -932,110 +1005,27 @@ class CustomerDashboardActivity : AppCompatActivity() {
     }
 
     private fun createTestRating() {
-        // Fungsi untuk testing - buat rating dummy
+        // Hanya untuk testing - hapus di production
         val testRating = Rating(
-            id = "test_${System.currentTimeMillis()}",
-            workerId = "worker_1", // Ganti dengan ID worker yang ada
-            customerId = auth.currentUser?.uid ?: "test_customer",
+            workerId = "test_worker_id", // Ganti dengan worker ID yang valid
+            customerId = auth.currentUser?.uid ?: "",
             customerName = "Test Customer",
             rating = 4.5f,
-            review = "Test rating untuk debugging",
-            date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
+            date = SimpleDateFormat("dd MMM yyyy", Locale("id", "ID")).format(Date()),
             createdAt = Timestamp.now()
         )
 
         firestore.collection(COLLECTION_RATINGS)
-            .document(testRating.id)
+            .document(testRating.workerId)
             .set(testRating)
             .addOnSuccessListener {
-                Log.d(TAG, "Test rating created")
-                updateWorkerRating("worker_1") {
-                    Toast.makeText(this, "Test rating berhasil dibuat", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to create test rating", e)
-            }
-    }
-
-    private fun updateJobRating(worker: Worker, rating: Float, callback: (Boolean) -> Unit) {
-        val currentUserId = auth.currentUser?.uid ?: return
-
-        Log.d(TAG, "Updating job rating for worker: ${worker.name}, job description: ${worker.jobDescription}")
-
-        // Pencarian job yang lebih spesifik
-        firestore.collection(COLLECTION_JOBS)
-            .whereEqualTo("customerId", currentUserId)
-            .whereEqualTo("workerName", worker.name)
-            .whereEqualTo("status", "completed")
-            .whereEqualTo("description", worker.jobDescription)
-            .get()
-            .addOnSuccessListener { documents ->
-                Log.d(TAG, "Found ${documents.size()} matching jobs")
-
-                if (!documents.isEmpty) {
-                    // Cari job yang belum di-rating (rating = 0 atau null)
-                    val unratedJob = documents.documents.find { doc ->
-                        val job = doc.toObject(Job::class.java)
-                        val jobRating = job?.rating ?: 0f
-                        Log.d(TAG, "Job ${doc.id} rating: $jobRating")
-                        jobRating == 0f
-                    }
-
-                    if (unratedJob != null) {
-                        Log.d(TAG, "Updating job ${unratedJob.id} with rating: $rating")
-
-                        firestore.collection(COLLECTION_JOBS)
-                            .document(unratedJob.id)
-                            .update(
-                                mapOf(
-                                    "rating" to rating,
-                                    "updatedAt" to Timestamp.now()
-                                )
-                            )
-                            .addOnSuccessListener {
-                                Log.d(TAG, "Job rating updated successfully for job: ${unratedJob.id}")
-                                callback(true)
-                            }
-                            .addOnFailureListener { exception ->
-                                Log.e(TAG, "Failed to update job rating for job: ${unratedJob.id}", exception)
-                                callback(false)
-                            }
+                updateWorkerRatingCount(testRating.workerId) { success ->
+                    if (success) {
+                        Toast.makeText(this, "Test rating berhasil dibuat", Toast.LENGTH_SHORT).show()
                     } else {
-                        Log.w(TAG, "No unrated job found for worker: ${worker.name}")
-
-                        // TAMBAHAN: Coba ambil job pertama jika tidak ada yang rating 0
-                        val firstJob = documents.documents.firstOrNull()
-                        if (firstJob != null) {
-                            Log.d(TAG, "Using first job as fallback: ${firstJob.id}")
-                            firestore.collection(COLLECTION_JOBS)
-                                .document(firstJob.id)
-                                .update(
-                                    mapOf(
-                                        "rating" to rating,
-                                        "updatedAt" to Timestamp.now()
-                                    )
-                                )
-                                .addOnSuccessListener {
-                                    Log.d(TAG, "Fallback job rating updated successfully")
-                                    callback(true)
-                                }
-                                .addOnFailureListener {
-                                    Log.e(TAG, "Failed to update fallback job rating")
-                                    callback(false)
-                                }
-                        } else {
-                            callback(false)
-                        }
+                        Toast.makeText(this, "Test rating dibuat tapi gagal update worker", Toast.LENGTH_SHORT).show()
                     }
-                } else {
-                    Log.w(TAG, "No jobs found for worker: ${worker.name}")
-                    callback(false)
                 }
-            }
-            .addOnFailureListener { exception ->
-                Log.e(TAG, "Error finding job to update rating", exception)
-                callback(false)
             }
     }
 
@@ -1047,13 +1037,13 @@ class CustomerDashboardActivity : AppCompatActivity() {
             .whereEqualTo("workerId", workerId)
             .get()
             .addOnSuccessListener { documents ->
-                var totalRating = 0.0
+                var totalRating = 0f
                 var count = 0
-                val ratings = mutableListOf<Double>()
+                val ratings = mutableListOf<Float>()
 
                 for (document in documents) {
-                    val rating = document.getDouble("rating") ?: 0.0
-                    if (rating > 0) { // Hanya hitung rating yang valid
+                    val rating = (document.getDouble("rating") ?: 0.0).toFloat()
+                    if (rating > 0f) { // Hanya hitung rating yang valid
                         totalRating += rating
                         count++
                         ratings.add(rating)
@@ -1061,7 +1051,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 }
 
                 val averageRating = if (count > 0) {
-                    String.format(Locale.US, "%.2f", totalRating / count).toDouble()
+                    String.format(Locale.US, "%.2f", totalRating / count).toFloat()
                 } else {
                     0.0
                 }
@@ -1095,73 +1085,70 @@ class CustomerDashboardActivity : AppCompatActivity() {
     }
 
     private fun recalculateAllWorkerRatings() {
-        Log.d(TAG, "Recalculating all worker ratings...")
+        showLoading(true)
 
         firestore.collection(COLLECTION_WORKERS)
             .get()
-            .addOnSuccessListener { workerDocuments ->
+            .addOnSuccessListener { workers ->
+                val batch = firestore.batch()
                 var processedCount = 0
-                val totalWorkers = workerDocuments.size()
+                val totalWorkers = workers.size()
 
                 if (totalWorkers == 0) {
-                    Log.d(TAG, "No workers found to recalculate")
+                    showLoading(false)
                     return@addOnSuccessListener
                 }
 
-                for (workerDoc in workerDocuments) {
+                for (workerDoc in workers) {
                     val workerId = workerDoc.id
 
-                    // Hitung ulang rating untuk setiap worker
+                    // Ambil semua rating untuk worker ini
                     firestore.collection(COLLECTION_RATINGS)
                         .whereEqualTo("workerId", workerId)
                         .get()
-                        .addOnSuccessListener { ratingDocuments ->
-                            var totalRating = 0.0
-                            var validRatingCount = 0
+                        .addOnSuccessListener { ratings ->
+                            var totalRating = 0f
+                            var count = 0
 
-                            for (ratingDoc in ratingDocuments) {
-                                val rating = ratingDoc.getDouble("rating") ?: 0.0
-                                if (rating > 0) {
-                                    totalRating += rating
-                                    validRatingCount++
-                                }
+                            for (ratingDoc in ratings) {
+                                val rating = (ratingDoc.getDouble("rating") ?: 0.0).toFloat()
+                                totalRating += rating
+                                count++
                             }
 
-                            val averageRating = if (validRatingCount > 0) {
-                                String.format("%.2f", totalRating / validRatingCount).toDouble()
-                            } else {
-                                0.0
-                            }
+                            val averageRating = if (count > 0) totalRating / count else 0.0
 
-                            // Update worker
-                            workerDoc.reference.update(
-                                mapOf(
-                                    "rating" to averageRating,
-                                    "ratingCount" to validRatingCount,
-                                    "updatedAt" to Timestamp.now()
-                                )
-                            ).addOnCompleteListener {
-                                processedCount++
-                                Log.d(TAG, "Updated worker $workerId: $averageRating ($validRatingCount ratings) - Progress: $processedCount/$totalWorkers")
+                            // Update worker rating
+                            val workerRef = firestore.collection(COLLECTION_WORKERS).document(workerId)
+                            batch.update(workerRef, mapOf(
+                                "rating" to averageRating,
+                                "ratingCount" to count,
+                                "updatedAt" to Timestamp.now()
+                            ))
 
-                                if (processedCount == totalWorkers) {
-                                    Log.d(TAG, "All worker ratings recalculated successfully")
-                                    Toast.makeText(this, "Semua rating worker berhasil diperbarui", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
-                        .addOnFailureListener { exception ->
                             processedCount++
-                            Log.e(TAG, "Failed to recalculate rating for worker $workerId", exception)
 
+                            // Commit batch ketika semua worker sudah diproses
                             if (processedCount == totalWorkers) {
-                                Log.d(TAG, "Rating recalculation completed with some errors")
+                                batch.commit()
+                                    .addOnSuccessListener {
+                                        showLoading(false)
+                                        Toast.makeText(this, "Rating semua pekerja berhasil diperbarui", Toast.LENGTH_SHORT).show()
+                                        refreshData()
+                                    }
+                                    .addOnFailureListener { exception ->
+                                        showLoading(false)
+                                        Log.e(TAG, "Error committing batch update", exception)
+                                        Toast.makeText(this, "Gagal memperbarui rating", Toast.LENGTH_SHORT).show()
+                                    }
                             }
                         }
                 }
             }
             .addOnFailureListener { exception ->
-                Log.e(TAG, "Failed to get workers for recalculation", exception)
+                showLoading(false)
+                Log.e(TAG, "Error fetching workers for recalculation", exception)
+                Toast.makeText(this, "Gagal mengambil data pekerja", Toast.LENGTH_SHORT).show()
             }
     }
 
@@ -1238,4 +1225,6 @@ class CustomerDashboardActivity : AppCompatActivity() {
         loadUnratedWorkers()
         loadRecentJobs()
     }
+
 }
+

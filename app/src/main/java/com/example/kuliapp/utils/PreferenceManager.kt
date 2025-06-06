@@ -66,13 +66,15 @@ class PreferenceManager(context: Context) {
         return getBoolean(KEY_IS_LOGGED_IN)
     }
 
-    fun setUserId(userId: String) {
-        setString(KEY_USER_ID, userId)
+    fun setUserId(customerId: String) {
+        setString(KEY_USER_ID, customerId)
     }
 
     fun getUserId(): String? {
         return getString(KEY_USER_ID)
     }
+
+
 
     fun setUserType(userType: String) {
         setString(KEY_USER_TYPE, userType)

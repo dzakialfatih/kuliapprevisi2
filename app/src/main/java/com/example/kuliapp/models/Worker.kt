@@ -4,10 +4,11 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.PropertyName
 import java.io.Serializable
 import java.util.Date
+import java.util.Locale
 
 data class Worker(
-    @PropertyName("id")
-    val id: String = "",
+    @PropertyName("workerId")
+    val workerId: String = "",
 
     @PropertyName("name")
     val name: String = "",
@@ -31,7 +32,7 @@ data class Worker(
     val photo: String = "",
 
     @PropertyName("rating")
-    val rating: Double = 0.0,
+    val rating: Float = 0f,
 
     @PropertyName("ratingCount")
     val ratingCount: Int = 0,
@@ -39,14 +40,13 @@ data class Worker(
     @PropertyName("isAvailable")
     val isAvailable: Boolean = true,
 
-    // Gunakan Any untuk menangani berbagai format timestamp
     @PropertyName("createdAt")
     val _createdAt: Any? = null,
 
     @PropertyName("updatedAt")
     val _updatedAt: Any? = null,
 
-    // Additional fields for specific contexts
+    // Additional fields
     @PropertyName("jobDate")
     val jobDate: String = "",
 
@@ -54,7 +54,15 @@ data class Worker(
     val jobDescription: String = "",
 
     @PropertyName("phoneNumber")
-    val phoneNumber: String = phone // Alias for compatibility
+    val phoneNumber: String = phone,
+
+    // Tambahan untuk rating statistics
+    @PropertyName("totalRatingSum")
+    val totalRatingSum: Float = 0f, // Total semua rating (untuk kalkulasi)
+
+    @PropertyName("lastRatingUpdate")
+    val lastRatingUpdate: Long = 0L
+
 ) : Serializable {
 
     // HAPUS konstruktor secondary yang bermasalah - ini penyebab utama masalah!
@@ -102,12 +110,30 @@ data class Worker(
     }
 
     fun getFormattedRating(): String {
-        return if (rating > 0) {
-            String.format("%.1f", rating)
+        return if (rating > 0 && ratingCount > 0) {
+            String.format(Locale.getDefault(), "%.1f", rating)
         } else {
             "Belum dirating"
         }
     }
+
+    fun getRatingStars(): String {
+        return if (rating > 0) {
+            "★".repeat(rating.toInt()) + "☆".repeat(5 - rating.toInt())
+        } else {
+            "☆☆☆☆☆"
+        }
+    }
+
+    fun getRatingWithCount(): String {
+        return if (ratingCount > 0) {
+            "${getFormattedRating()} (${ratingCount} ulasan)"
+        } else {
+            "Belum ada ulasan"
+        }
+    }
+
+    fun isHighRated(): Boolean = rating >= 4.0f && ratingCount >= 3
 
     fun isNewWorker(): Boolean {
         return ratingCount == 0
@@ -125,8 +151,6 @@ data class Worker(
 
 // Rating model untuk Firebase
 data class Rating(
-    @PropertyName("id")
-    val id: String = "",
 
     @PropertyName("workerId")
     val workerId: String = "",
@@ -139,9 +163,6 @@ data class Rating(
 
     @PropertyName("rating")
     val rating: Float = 0f,
-
-    @PropertyName("review")
-    val review: String = "",
 
     @PropertyName("date")
     val date: String = "",
@@ -159,8 +180,6 @@ data class Rating(
 // Job model untuk Firebase
 // Job model untuk Firebase - Disinkronkan dengan Worker model
 data class Job(
-    @PropertyName("id")
-    var id: String = "",
 
     @PropertyName("customerId")
     var customerId: String = "",
@@ -291,7 +310,7 @@ data class Job(
             status: String = "pending"
         ): Job {
             return Job(
-                workerId = worker.id,
+                workerId = worker.workerId,
                 workerName = worker.name,
                 workerPhoto = worker.photo,
                 workerPhone = worker.phone,

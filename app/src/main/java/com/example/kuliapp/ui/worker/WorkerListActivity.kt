@@ -18,6 +18,9 @@ import com.example.kuliapp.databinding.ActivityWorkerListBinding
 import com.example.kuliapp.databinding.DialogBookingConfirmationBinding
 import com.example.kuliapp.models.Job
 import com.example.kuliapp.models.Worker
+import com.example.kuliapp.ui.customer.CustomerDashboardActivity
+import com.example.kuliapp.ui.customer.CustomerDashboardActivity.Companion
+import com.example.kuliapp.utils.PreferenceManager
 import com.example.kuliapp.utils.WhatsappUtils
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
@@ -32,7 +35,7 @@ class WorkerListActivity : AppCompatActivity() {
     private lateinit var workerAdapter: WorkerAdapter
     private lateinit var firestore: FirebaseFirestore
     private lateinit var auth: FirebaseAuth
-
+    private lateinit var preferenceManager: PreferenceManager
     private var allWorkers = mutableListOf<Worker>()
     private var filteredWorkers = mutableListOf<Worker>()
     private var filterByRating = true
@@ -55,9 +58,11 @@ class WorkerListActivity : AppCompatActivity() {
         // Initialize Firebase
         firestore = FirebaseFirestore.getInstance()
         auth = FirebaseAuth.getInstance()
+        preferenceManager = PreferenceManager(this)
 
         setupUI()
         setupListeners()
+        setupSwipeRefresh()
 
         // Load data berdasarkan flag
         if (useDummyData) {
@@ -80,6 +85,56 @@ class WorkerListActivity : AppCompatActivity() {
             showBookingConfirmationDialog(worker)
         }
         binding.rvWorkers.adapter = workerAdapter
+    }
+
+    private fun setupSwipeRefresh() {
+        // Setup SwipeRefreshLayout
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            refreshData()
+        }
+
+        // Customize refresh indicator colors
+        binding.swipeRefreshLayout.setColorSchemeResources(
+            R.color.primary,
+            R.color.accent,
+            R.color.primary_dark
+        )
+    }
+
+    private fun refreshData() {
+        Log.d(TAG, "Refreshing worker data...")
+
+        if (useDummyData) {
+            // Simulasi delay untuk dummy data
+            binding.root.postDelayed({
+                allWorkers.clear()
+                allWorkers.addAll(getDummyWorkers())
+                applyFilters()
+                binding.swipeRefreshLayout.isRefreshing = false
+            }, 1000)
+        } else {
+            // Refresh dari Firebase
+            firestore.collection(COLLECTION_WORKERS)
+                .whereEqualTo("isAvailable", true)
+                .get()
+                .addOnCompleteListener { task ->
+                    // Stop refresh animation dalam semua kasus
+                    binding.swipeRefreshLayout.isRefreshing = false
+
+                    if (task.isSuccessful) {
+                        allWorkers.clear()
+                        task.result?.documents?.forEach { document ->
+                            val worker = document.toObject(Worker::class.java)
+                            if (worker != null && worker.name.isNotEmpty()) {
+                                allWorkers.add(worker)
+                            }
+                        }
+                        applyFilters()
+                    } else {
+                        Toast.makeText(this, "Gagal memuat data", Toast.LENGTH_SHORT).show()
+                    }
+                }
+        }
     }
 
     private fun setupListeners() {
@@ -165,7 +220,7 @@ class WorkerListActivity : AppCompatActivity() {
 
     private fun createBooking(worker: Worker, jobDescription: String, callback: (Boolean) -> Unit) {
         val currentUserId = auth.currentUser?.uid
-        val currentUserName = auth.currentUser?.displayName ?: "Pengguna"
+        val currentUserName = preferenceManager.getString("user_name") ?: "Pengguna"
 
         if (currentUserId == null) {
             Toast.makeText(this, "Error: User not authenticated", Toast.LENGTH_SHORT).show()
@@ -185,10 +240,9 @@ class WorkerListActivity : AppCompatActivity() {
         val dateFormat = SimpleDateFormat("dd MMMM yyyy", Locale("id", "ID"))
 
         val job = Job(
-            id = jobId,
             customerId = currentUserId,
             customerName = currentUserName,
-            workerId = worker.id,
+            workerId = worker.workerId,
             workerName = worker.name,
             workerPhoto = worker.photo,
             date = dateFormat.format(Date()),
@@ -203,7 +257,7 @@ class WorkerListActivity : AppCompatActivity() {
 
         // LOG UNTUK DEBUG
         Log.d(TAG, "Creating job with data:")
-        Log.d(TAG, "Job ID: ${job.id}")
+        Log.d(TAG, "Job ID: ${job.workerId}")
         Log.d(TAG, "Customer ID: ${job.customerId}")
         Log.d(TAG, "Worker ID: ${job.workerId}")
         Log.d(TAG, "Status: ${job.status}")
@@ -250,7 +304,6 @@ class WorkerListActivity : AppCompatActivity() {
                 Log.e(TAG, "Error updating job status", exception)
             }
     }
-
 
     private fun openWhatsAppWithWorker(worker: Worker, jobDescription: String) {
         val phoneNumber = if (worker.phone.startsWith("+62")) {
@@ -299,10 +352,10 @@ class WorkerListActivity : AppCompatActivity() {
     private fun getDummyWorkers(): List<Worker> {
         return listOf(
             Worker(
-                id = "1",
+                workerId = "1",
                 name = "Rudi Hartono",
                 photo = "",
-                rating = 4.8,
+                rating = 4.8f,
                 ratingCount = 24,
                 location = "Bekasi Utara",
                 experience = "Pengalaman 5 tahun sebagai tukang bangunan",
@@ -311,10 +364,10 @@ class WorkerListActivity : AppCompatActivity() {
                 isAvailable = true,
             ),
             Worker(
-                id = "2",
+                workerId = "2",
                 name = "Joko Widodo",
                 photo = "",
-                rating = 4.5,
+                rating = 4.5f,
                 ratingCount = 18,
                 location = "Bekasi Selatan",
                 experience = "Spesialis keramik dan granit",
@@ -323,10 +376,10 @@ class WorkerListActivity : AppCompatActivity() {
                 isAvailable = true,
             ),
             Worker(
-                id = "3",
+                workerId = "3",
                 name = "Ahmad Wijaya",
                 photo = "",
-                rating = 4.9,
+                rating = 4.9f,
                 ratingCount = 32,
                 location = "Jakarta Timur",
                 experience = "Ahli pengecatan dan renovasi",
@@ -335,10 +388,10 @@ class WorkerListActivity : AppCompatActivity() {
                 isAvailable = true,
             ),
             Worker(
-                id = "4",
+                workerId = "4",
                 name = "Dedi Cahyono",
                 photo = "",
-                rating = 4.7,
+                rating = 4.7f,
                 ratingCount = 15,
                 location = "Bekasi Barat",
                 experience = "Instalasi listrik dan perbaikan",
@@ -347,10 +400,10 @@ class WorkerListActivity : AppCompatActivity() {
                 isAvailable = true,
             ),
             Worker(
-                id = "5",
+                workerId = "5",
                 name = "Eko Prasetyo",
                 photo = "",
-                rating = 4.6,
+                rating = 4.6f,
                 ratingCount = 21,
                 location = "Bekasi Timur",
                 experience = "Pembuatan furniture dan renovasi ringan",

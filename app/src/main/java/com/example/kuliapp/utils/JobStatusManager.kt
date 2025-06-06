@@ -92,7 +92,7 @@ class JobStatusManager {
                 .addOnSuccessListener { documents ->
                     val jobs = mutableListOf<Job>()
                     for (document in documents) {
-                        val job = document.toObject(Job::class.java).copy(id = document.id)
+                        val job = document.toObject(Job::class.java).copy(workerId = document.id)
                         jobs.add(job)
                     }
                     callback(jobs)
@@ -118,11 +118,11 @@ class JobStatusManager {
                 .addOnSuccessListener { documents ->
                     val jobs = mutableListOf<Job>()
                     for (document in documents) {
-                        val job = document.toObject(Job::class.java).copy(id = document.id)
+                        val job = document.toObject(Job::class.java).copy(workerId = document.id)
                         jobs.add(job)
 
                         // LOG UNTUK DEBUG
-                        Log.d(TAG, "Unrated job found: ${job.id}, workerId: ${job.workerId}, description: ${job.description}")
+                        Log.d(TAG, "Unrated job found: ${job.workerId}, workerId: ${job.workerId}, description: ${job.description}")
                     }
                     Log.d(TAG, "Total unrated completed jobs: ${jobs.size}")
                     callback(jobs)
