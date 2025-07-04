@@ -66,7 +66,8 @@ dependencies {
 //    implementation(libs.firebase.storage.ktx)
 //    implementation(libs.firebase.messaging.ktx)
     implementation (platform("com.google.firebase:firebase-bom:32.3.1"))
-
+    implementation ("com.github.bumptech.glide:glide:4.15.1")
+    annotationProcessor ("com.github.bumptech.glide:compiler:4.15.1")
     // Firebase Dependencies
     implementation ("com.google.firebase:firebase-auth-ktx")
 //    implementation ("com.google.firebase:firebase-firestore-ktx")

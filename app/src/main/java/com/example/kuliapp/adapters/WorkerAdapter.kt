@@ -48,18 +48,34 @@ class WorkerAdapter(
                 tvLocation.text = worker.location
                 tvExperience.text = worker.experience
 
-                // Set rating
-                ratingBar.rating = worker.rating.toFloat()
-                tvRatingScore.text = worker.getFormattedRating()  // INI YANG HILANG!
-                tvRatingCount.text = "(${worker.ratingCount} ulasan)"
+                // ===== RATING DAN RATING COUNT - SAMA SEPERTI WORKERDASHBOARD =====
+                // Konversi rating ke float untuk RatingBar
+                val ratingFloat = worker.rating.toFloat()
+                ratingBar.rating = ratingFloat
 
-                // SET HARGA - INI YANG PALING PENTING DAN HILANG!
+                // Nilai rating (misal: 4.2)
+                tvRatingScore.text = String.format("%.1f", ratingFloat)
+
+                // Jumlah ulasan (misal: (10 ulasan))
+                val reviewCount = worker.ratingCount
+                tvRatingCount.text = "($reviewCount ulasan)"
+
+                // ===== SET HARGA =====
                 tvPrice.text = worker.getFormattedPrice()
 
-                // Debug log untuk memastikan data price
-                Log.d(TAG, "Binding worker: ${worker.name}")
-                Log.d(TAG, "Price value: ${worker.price}")
-                Log.d(TAG, "Formatted price: ${worker.getFormattedPrice()}")
+                // Debug log untuk memastikan semua data
+                Log.d(TAG, "=== Binding worker data ===")
+                Log.d(TAG, "Name: ${worker.name}")
+                Log.d(TAG, "Rating (Double): ${worker.rating}")
+                Log.d(TAG, "Rating (Float): $ratingFloat")
+                Log.d(TAG, "Rating Count: ${worker.ratingCount}")
+                Log.d(TAG, "Rating Display: ${String.format("%.1f", ratingFloat)}")
+                Log.d(TAG, "Review Text: ($reviewCount ulasan)")
+                Log.d(TAG, "Price: ${worker.price}")
+                Log.d(TAG, "Formatted Price: ${worker.getFormattedPrice()}")
+                Log.d(TAG, "Location: ${worker.location}")
+                Log.d(TAG, "Experience: ${worker.experience}")
+                Log.d(TAG, "=============================")
 
                 // Load worker image if available
                 // In a real app, you'd use Glide/Picasso to load images

@@ -40,9 +40,9 @@ class RecentJobAdapter(
         fun bind(job: Job) {
             binding.apply {
                 tvWorkerName.text = job.workerName
-                tvJobDate.text = job.date
+                tvJobDate.text = job.jobDate
                 tvJobDescription.text = job.description
-                ratingBar.rating = job.rating
+                ratingBar.rating = job.rating.toFloat()
 
                 // Set warna bintang menjadi kuning
                 val yellow = ContextCompat.getColorStateList(itemView.context, R.color.star_rating)

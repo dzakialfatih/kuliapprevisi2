@@ -32,7 +32,7 @@ data class Worker(
     val photo: String = "",
 
     @PropertyName("rating")
-    val rating: Float = 0f,
+    val rating: Double = 0.0,
 
     @PropertyName("ratingCount")
     val ratingCount: Int = 0,
@@ -56,17 +56,7 @@ data class Worker(
     @PropertyName("phoneNumber")
     val phoneNumber: String = phone,
 
-    // Tambahan untuk rating statistics
-    @PropertyName("totalRatingSum")
-    val totalRatingSum: Float = 0f, // Total semua rating (untuk kalkulasi)
-
-    @PropertyName("lastRatingUpdate")
-    val lastRatingUpdate: Long = 0L
-
-) : Serializable {
-
-    // HAPUS konstruktor secondary yang bermasalah - ini penyebab utama masalah!
-    // Konstruktor secondary Anda me-reset semua nilai ke default
+    ) : Serializable {
 
     // Public getters untuk timestamp
     val createdAt: Timestamp?
@@ -109,27 +99,11 @@ data class Worker(
         }
     }
 
-    fun getFormattedRating(): String {
-        return if (rating > 0 && ratingCount > 0) {
-            String.format(Locale.getDefault(), "%.1f", rating)
-        } else {
-            "Belum dirating"
-        }
-    }
-
     fun getRatingStars(): String {
         return if (rating > 0) {
             "★".repeat(rating.toInt()) + "☆".repeat(5 - rating.toInt())
         } else {
             "☆☆☆☆☆"
-        }
-    }
-
-    fun getRatingWithCount(): String {
-        return if (ratingCount > 0) {
-            "${getFormattedRating()} (${ratingCount} ulasan)"
-        } else {
-            "Belum ada ulasan"
         }
     }
 
@@ -162,22 +136,58 @@ data class Rating(
     val customerName: String = "",
 
     @PropertyName("rating")
-    val rating: Float = 0f,
+    val rating: Double = 0.0,
 
     @PropertyName("date")
     val date: String = "",
 
     @PropertyName("createdAt")
-    val createdAt: Timestamp? = null
+    val _createdAt: Any? = null
 ) : Serializable {
+
+    // Public getter untuk timestamp
+    val createdAt: Timestamp?
+        get() = convertToTimestamp(_createdAt)
+
+    // Helper function untuk konversi timestamp
+    private fun convertToTimestamp(value: Any?): Timestamp? {
+        return when (value) {
+            is Timestamp -> value
+            is Long -> {
+                if (value > 1000000000000L) {
+                    Timestamp(Date(value))
+                } else {
+                    Timestamp(value, 0)
+                }
+            }
+            is Date -> Timestamp(value)
+            is Map<*, *> -> {
+                val seconds = value["seconds"] as? Long
+                val nanoseconds = value["nanoseconds"] as? Int ?: 0
+                if (seconds != null) {
+                    Timestamp(seconds, nanoseconds)
+                } else null
+            }
+            else -> null
+        }
+    }
 
     // Helper function untuk mendapatkan Long timestamp jika diperlukan
     fun getCreatedAtLong(): Long {
         return createdAt?.seconds ?: 0
     }
+
+    // Helper function untuk format rating
+    fun getFormattedRating(): String {
+        return String.format(Locale.getDefault(), "%.1f", rating)
+    }
+
+    // Helper function untuk rating stars
+    fun getRatingStars(): String {
+        return "★".repeat(rating.toInt()) + "☆".repeat(5 - rating.toInt())
+    }
 }
 
-// Job model untuk Firebase
 // Job model untuk Firebase - Disinkronkan dengan Worker model
 data class Job(
 
@@ -201,8 +211,8 @@ data class Job(
     @PropertyName("workerPhone")
     var workerPhone: String = "",
 
-    @PropertyName("date")
-    var date: String = "",
+    @PropertyName("jobDate")
+    val jobDate: String = "",
 
     @PropertyName("description")
     var description: String = "",
@@ -211,7 +221,7 @@ data class Job(
     var status: String = "", // "pending", "accepted", "in_progress", "completed", "cancelled"
 
     @PropertyName("rating")
-    var rating: Float = 0f,
+    var rating: Double = 0.0,
 
     @PropertyName("price")
     var price: Long = 0,
@@ -318,7 +328,7 @@ data class Job(
                 location = worker.location,
                 customerId = customerId,
                 customerName = customerName,
-                date = date,
+                jobDate = date,
                 description = description,
                 status = status,
                 _createdAt = Timestamp.now(),
@@ -327,3 +337,21 @@ data class Job(
         }
     }
 }
+
+data class RatingStats(
+    @PropertyName("workerId")
+    val workerId: String = "",
+
+    @PropertyName("rating")
+    val rating: Double = 0.0,
+
+    @PropertyName("ratingCount")
+    val ratingCount: Int = 0,
+
+    @PropertyName("updatedAt")
+    val updatedAt: Timestamp = Timestamp.now(),
+
+    @PropertyName("createdAt")
+    val createdAt: Timestamp = Timestamp.now()
+
+) : Serializable

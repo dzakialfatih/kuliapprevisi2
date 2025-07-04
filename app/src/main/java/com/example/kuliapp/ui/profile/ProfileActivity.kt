@@ -13,38 +13,45 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class ProfileActivity : AppCompatActivity() {
 
+    // Binding untuk layout
     private lateinit var binding: ActivityProfileBinding
+
+    // Manager untuk shared preferences
     private lateinit var preferenceManager: PreferenceManager
 
-    // State variables
+    // Variable state untuk mode edit
     private var isEditMode = false
 
+    // Fungsi onCreate - Inisialisasi Activity
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityProfileBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Initialize preferences
+        // Inisialisasi preference manager
         preferenceManager = PreferenceManager(this)
 
-        // Set up click listeners
+        // Setup semua listener
         setupListeners()
 
-        // Set initial data
+        // Load data profile dari preferences
         loadProfileData()
 
-        // Initially disable editing
+        // Set mode awal tidak bisa edit
         setEditingEnabled(false)
     }
 
+    // Fungsi setup semua listener tombol
     private fun setupListeners() {
+
+        // Tombol Edit/Cancel - Toggle mode edit
         binding.btnEdit.setOnClickListener {
-            // Toggle edit mode
             isEditMode = !isEditMode
             setEditingEnabled(isEditMode)
             binding.btnEdit.text = if (isEditMode) getString(R.string.cancel) else getString(R.string.edit)
         }
 
+        // Tombol Save - Simpan perubahan profile
         binding.btnSave.setOnClickListener {
             if (validateInputs()) {
                 saveProfileData()
@@ -55,32 +62,34 @@ class ProfileActivity : AppCompatActivity() {
             }
         }
 
-        // Add back button functionality if needed
+        // Tombol Back - Kembali ke halaman sebelumnya
         binding.btnBack.setOnClickListener {
             onBackPressed()
         }
 
-        // Tombol logout
+        // Tombol Logout - Keluar dari aplikasi
         binding.buttonLogout.setOnClickListener {
             showLogoutConfirmationDialog()
         }
     }
 
+    // Fungsi untuk mengaktifkan/menonaktifkan mode edit
     private fun setEditingEnabled(enabled: Boolean) {
-        // Enable or disable editing for all editable fields
+        // Enable/disable field input
         binding.editName.isEnabled = enabled
         binding.editPhone.isEnabled = enabled
         binding.editAddress.isEnabled = enabled
 
-        // Show or hide the save button
+        // Show/hide tombol save
         binding.btnSave.isEnabled = enabled
         binding.btnSave.visibility = if (enabled) View.VISIBLE else View.GONE
     }
 
+    // Fungsi validasi input data profile
     private fun validateInputs(): Boolean {
         var isValid = true
 
-        // Validate name
+        // Validasi nama - tidak boleh kosong
         if (binding.editName.text.toString().trim().isEmpty()) {
             binding.nameInputLayout.error = getString(R.string.error_name_required)
             isValid = false
@@ -88,7 +97,7 @@ class ProfileActivity : AppCompatActivity() {
             binding.nameInputLayout.error = null
         }
 
-        // Validate phone number (simple validation)
+        // Validasi nomor telepon - tidak boleh kosong dan format valid
         val phoneText = binding.editPhone.text.toString().trim()
         if (phoneText.isEmpty()) {
             binding.phoneInputLayout.error = getString(R.string.error_phone_required)
@@ -100,7 +109,7 @@ class ProfileActivity : AppCompatActivity() {
             binding.phoneInputLayout.error = null
         }
 
-        // Address can be simple validation
+        // Validasi alamat - tidak boleh kosong
         if (binding.editAddress.text.toString().trim().isEmpty()) {
             binding.addressInputLayout.error = getString(R.string.error_address_required)
             isValid = false
@@ -111,32 +120,33 @@ class ProfileActivity : AppCompatActivity() {
         return isValid
     }
 
+    // Fungsi load data profile dari preferences
     private fun loadProfileData() {
-        // Get data from PreferenceManager
+        // Ambil data dari PreferenceManager dengan default value
         val name = preferenceManager.getString("user_name") ?: "User Name"
         val phone = preferenceManager.getString("user_phone") ?: "08123456789"
         val address = preferenceManager.getString("user_address") ?: "Bekasi, Jawa Barat"
 
-        // Set data to fields
+        // Set data ke field input
         binding.editName.setText(name)
         binding.editPhone.setText(phone)
         binding.editAddress.setText(address)
     }
 
+    // Fungsi simpan data profile ke preferences
     private fun saveProfileData() {
-        // Get data from fields
+        // Ambil data dari field input
         val name = binding.editName.text.toString().trim()
         val phone = binding.editPhone.text.toString().trim()
         val address = binding.editAddress.text.toString().trim()
 
-        // Save to preference manager
+        // Simpan ke preference manager
         preferenceManager.setString("user_name", name)
         preferenceManager.setString("user_phone", phone)
         preferenceManager.setString("user_address", address)
     }
 
-
-    // LANGKAH 1: Update method logout di ProfileActivity
+    // Fungsi dialog konfirmasi logout
     private fun showLogoutConfirmationDialog() {
         MaterialAlertDialogBuilder(this)
             .setTitle("Keluar")
@@ -145,16 +155,17 @@ class ProfileActivity : AppCompatActivity() {
                 dialog.dismiss()
             }
             .setPositiveButton("Keluar") { _, _ ->
-                // LANGKAH 1A: Bersihkan SEMUA data login
-                preferenceManager.clearAllPreferences() // atau gunakan method khusus di bawah
+                // Bersihkan SEMUA data login dari preferences
+                preferenceManager.clearAllPreferences()
 
-                // LANGKAH 1B: Buat intent ke LoginActivity
+                // Buat intent ke LoginActivity dengan flag clear task
                 val intent = Intent(this, LoginActivity::class.java)
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
 
-                // LANGKAH 1C: Tambahkan extra untuk memastikan tidak auto-login
+                // Tambahkan extra untuk memastikan tidak auto-login
                 intent.putExtra("force_logout", true)
 
+                // Pindah ke LoginActivity dan tutup ProfileActivity
                 startActivity(intent)
                 finish()
             }

@@ -49,6 +49,15 @@
                     app:civ_border_color="@color/white"
                     app:civ_border_width="3dp" />
 
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    style="?android:attr/progressBarStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="0dp"
+                    android:layout_marginTop="30dp"
+                    android:indeterminateTint="@color/primary" />
+
             </androidx.cardview.widget.CardView>
 
             <!-- Camera Icon for Photo Change -->
@@ -525,6 +534,7 @@
                     android:layout_marginTop="50dp" />
 
             </LinearLayout>
+
 
         </androidx.constraintlayout.widget.ConstraintLayout>
     </ScrollView>

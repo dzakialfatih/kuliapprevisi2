@@ -114,7 +114,7 @@ class FirebaseRepository {
 
             val ratingWithId = rating.copy(
                 workerId = ratingId,
-                createdAt = Timestamp.now()
+                _createdAt = Timestamp.now()
             )
 
             firestore.collection(COLLECTION_RATINGS)

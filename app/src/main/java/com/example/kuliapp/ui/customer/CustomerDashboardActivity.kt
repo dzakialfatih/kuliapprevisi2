@@ -47,6 +47,7 @@ import java.util.*
 
 class CustomerDashboardActivity : AppCompatActivity() {
 
+    // === DEKLARASI VARIABEL ===
     private lateinit var binding: ActivityCustomerDashboardBinding
     private lateinit var preferenceManager: PreferenceManager
     private lateinit var firestore: FirebaseFirestore
@@ -55,10 +56,12 @@ class CustomerDashboardActivity : AppCompatActivity() {
     private lateinit var recentJobAdapter: RecentJobAdapter
     private val workerListeners = mutableListOf<ListenerRegistration>()
     private val handler = Handler(Looper.getMainLooper())
+
     // Flag untuk menggunakan dummy data atau tidak
     private val useDummyData = false // Set ke false untuk menggunakan Firebase
     private var recentJobsListener: ListenerRegistration? = null
 
+    // === KONSTANTA ===
     companion object {
         private const val TAG = "CustomerDashboard"
         private const val COLLECTION_WORKERS = "workers"
@@ -66,6 +69,9 @@ class CustomerDashboardActivity : AppCompatActivity() {
         private const val COLLECTION_JOBS = "jobs"
     }
 
+    // === LIFECYCLE METHODS ===
+
+    // Inisialisasi Activity
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCustomerDashboardBinding.inflate(layoutInflater)
@@ -85,11 +91,61 @@ class CustomerDashboardActivity : AppCompatActivity() {
         setupRecentJobsListener()
     }
 
-    private fun showLoading(isLoading: Boolean) {
-        findViewById<FrameLayout>(R.id.loadingOverlay).visibility =
-            if (isLoading) View.VISIBLE else View.GONE
+    // Cleanup listeners saat activity dihancurkan
+    override fun onDestroy() {
+        super.onDestroy()
+        cleanupWorkerListeners()
+        recentJobsListener?.remove()
     }
 
+    // === UI SETUP METHODS ===
+
+    // Setup tampilan UI utama
+    private fun setupUI() {
+        // Set user's name in welcome message
+        val userName = preferenceManager.getString("user_name")
+            ?: auth.currentUser?.email?.substringBefore("@")?.replaceFirstChar {
+                if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+            }
+            ?: "Pengguna"
+
+        binding.tvWelcome.text = getString(R.string.welcome_user, userName)
+
+        // Setup RecyclerViews
+        binding.rvUnratedWorkers.layoutManager = LinearLayoutManager(this)
+        unratedWorkerAdapter = UnratedWorkerAdapter(mutableListOf()) { worker ->
+            // Handle rating worker
+            showRatingDialog(worker)
+        }
+        binding.rvUnratedWorkers.adapter = unratedWorkerAdapter
+
+        binding.rvRecentJobs.layoutManager = LinearLayoutManager(this)
+        recentJobAdapter = RecentJobAdapter(mutableListOf())
+        binding.rvRecentJobs.adapter = recentJobAdapter
+    }
+
+    // Setup event listeners untuk tombol-tombol
+    private fun setupListeners() {
+        // Tombol Find Worker - navigasi ke worker list
+        binding.btnFindWorker.setOnClickListener {
+            startActivity(Intent(this, WorkerListActivity::class.java))
+        }
+
+        // Tombol Profile - navigasi ke profile
+        binding.btnProfile.setOnClickListener {
+            startActivity(Intent(this, ProfileActivity::class.java))
+        }
+
+        // Add manual refresh button (optional)
+        // Uncomment jika Anda ingin menambahkan tombol refresh manual
+        /*
+        binding.btnRefresh.setOnClickListener {
+            refreshData()
+        }
+        */
+    }
+
+    // Setup swipe refresh functionality
     private fun setupSwipeRefresh() {
         // Setup SwipeRefreshLayout
         binding.swipeRefreshLayout.setOnRefreshListener {
@@ -104,8 +160,18 @@ class CustomerDashboardActivity : AppCompatActivity() {
         )
     }
 
-    private fun refreshData() {
+    // === LOADING MANAGEMENT ===
 
+    // Menampilkan/menyembunyikan loading overlay
+    private fun showLoading(isLoading: Boolean) {
+        findViewById<FrameLayout>(R.id.loadingOverlay).visibility =
+            if (isLoading) View.VISIBLE else View.GONE
+    }
+
+    // === DATA REFRESH METHODS ===
+
+    // Refresh semua data dashboard
+    private fun refreshData() {
         // Refresh daftar worker yang sudah dirating
         loadRecentJobs()
 
@@ -138,6 +204,9 @@ class CustomerDashboardActivity : AppCompatActivity() {
         loadRecentJobs(onLoadComplete)
     }
 
+    // === REAL-TIME LISTENERS ===
+
+    // Setup listener untuk perubahan job real-time
     private fun setupJobListener() {
         val currentUserId = auth.currentUser?.uid ?: return
 
@@ -157,50 +226,9 @@ class CustomerDashboardActivity : AppCompatActivity() {
             }
     }
 
-    private fun setupUI() {
-        // Set user's name in welcome message
-        val userName = preferenceManager.getString("user_name")
-            ?: auth.currentUser?.email?.substringBefore("@")?.replaceFirstChar {
-                if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
-            }
-            ?: "Pengguna"
+    // === LOAD UNRATED WORKERS METHODS ===
 
-        binding.tvWelcome.text = getString(R.string.welcome_user, userName)
-
-        // Setup RecyclerViews
-        binding.rvUnratedWorkers.layoutManager = LinearLayoutManager(this)
-        unratedWorkerAdapter = UnratedWorkerAdapter(mutableListOf()) { worker ->
-            // Handle rating worker
-            showRatingDialog(worker)
-        }
-        binding.rvUnratedWorkers.adapter = unratedWorkerAdapter
-
-        binding.rvRecentJobs.layoutManager = LinearLayoutManager(this)
-        recentJobAdapter = RecentJobAdapter(mutableListOf())
-        binding.rvRecentJobs.adapter = recentJobAdapter
-    }
-
-    private fun setupListeners() {
-        // Find worker button - navigate to worker list
-        binding.btnFindWorker.setOnClickListener {
-            startActivity(Intent(this, WorkerListActivity::class.java))
-        }
-
-        // Profile button - navigate to profile
-        binding.btnProfile.setOnClickListener {
-            startActivity(Intent(this, ProfileActivity::class.java))
-        }
-
-        // Add manual refresh button (optional)
-        // Uncomment jika Anda ingin menambahkan tombol refresh manual
-        /*
-        binding.btnRefresh.setOnClickListener {
-            refreshData()
-        }
-        */
-    }
-
-    // Overloaded method with completion callback
+    // Load unrated workers - method utama dengan callback
     private fun loadUnratedWorkers(onComplete: (() -> Unit)? = null) {
         if (useDummyData) {
             loadUnratedWorkersFromDummy(onComplete)
@@ -209,15 +237,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
         }
     }
 
-    // Overloaded method with completion callback
-    private fun loadRecentJobs(onComplete: (() -> Unit)? = null) {
-        if (useDummyData) {
-            loadRecentJobsFromDummy(onComplete)
-        } else {
-            loadRecentJobsFromFirebase(onComplete)
-        }
-    }
-
+    // Load unrated workers dari dummy data
     private fun loadUnratedWorkersFromDummy(onComplete: (() -> Unit)? = null) {
         showLoadingUnrated(true)
 
@@ -230,6 +250,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
         }, 1000) // Delay 1 detik untuk simulasi loading
     }
 
+    // Load unrated workers dari Firebase
     private fun loadUnratedWorkersFromFirebase(onComplete: (() -> Unit)? = null) {
         val currentUserId = auth.currentUser?.uid
         if (currentUserId == null) {
@@ -293,7 +314,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
                                 worker?.let {
                                     Log.d(TAG, "Worker data updated: ${it.name}")
                                     val workerWithJobInfo = it.copy(
-                                        jobDate = job.date,
+                                        jobDate = job.jobDate,
                                         jobDescription = job.description
                                     )
 
@@ -323,21 +344,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
         }
     }
 
-    // Function untuk cleanup listeners
-    private fun cleanupWorkerListeners() {
-        Log.d(TAG, "Cleaning up ${workerListeners.size} worker listeners")
-        workerListeners.forEach { it.remove() }
-        workerListeners.clear()
-    }
-
-    // Panggil ini di onDestroy() atau ketika tidak perlu lagi
-    override fun onDestroy() {
-        super.onDestroy()
-        cleanupWorkerListeners()
-        recentJobsListener?.remove()
-    }
-
-    // Alternative: Versi yang lebih efisien menggunakan single query untuk multiple worker names
+    // Load unrated workers dari Firebase - versi efisien dengan batch query
     private fun loadUnratedWorkersFromFirebaseEfficient(onComplete: (() -> Unit)? = null) {
         val currentUserId = auth.currentUser?.uid
         if (currentUserId == null) {
@@ -395,7 +402,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
                                 val job = jobs.find { it.workerName == w.name }
                                 job?.let { j ->
                                     val workerWithJobInfo = w.copy(
-                                        jobDate = j.date,
+                                        jobDate = j.jobDate,
                                         jobDescription = j.description
                                     )
                                     unratedWorkers.add(workerWithJobInfo)
@@ -419,7 +426,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
         }
     }
 
-    // Alternative: Jika nama worker bisa berubah dan ingin lebih robust
+    // Load unrated workers dengan pencarian nama yang flexible
     private fun loadUnratedWorkersWithNameSearch(onComplete: (() -> Unit)? = null) {
         val currentUserId = auth.currentUser?.uid
         if (currentUserId == null) {
@@ -467,7 +474,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
                                 }
                                 job?.let { j ->
                                     val workerWithJobInfo = w.copy(
-                                        jobDate = j.date,
+                                        jobDate = j.jobDate,
                                         jobDescription = j.description
                                     )
                                     unratedWorkers.add(workerWithJobInfo)
@@ -485,6 +492,18 @@ class CustomerDashboardActivity : AppCompatActivity() {
         }
     }
 
+    // === LOAD RECENT JOBS METHODS ===
+
+    // Load recent jobs - method utama dengan callback
+    private fun loadRecentJobs(onComplete: (() -> Unit)? = null) {
+        if (useDummyData) {
+            loadRecentJobsFromDummy(onComplete)
+        } else {
+            loadRecentJobsFromFirebase(onComplete)
+        }
+    }
+
+    // Load recent jobs dari dummy data
     private fun loadRecentJobsFromDummy(onComplete: (() -> Unit)? = null) {
         showLoadingRecent(true)
 
@@ -497,6 +516,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
         }, 1200) // Delay 1.2 detik untuk simulasi loading
     }
 
+    // Load recent jobs dari Firebase
     private fun loadRecentJobsFromFirebase(onComplete: (() -> Unit)? = null) {
         val currentUserId = auth.currentUser?.uid
         if (currentUserId == null) {
@@ -538,6 +558,17 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 onComplete?.invoke()
             }
     }
+
+    // === LISTENER MANAGEMENT ===
+
+    // Cleanup semua worker listeners
+    private fun cleanupWorkerListeners() {
+        Log.d(TAG, "Cleaning up ${workerListeners.size} worker listeners")
+        workerListeners.forEach { it.remove() }
+        workerListeners.clear()
+    }
+
+
 
     private fun setupRecentJobsListener() {
         val userId = auth.currentUser?.uid ?: return
@@ -584,7 +615,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 workerId = "worker_1",
                 name = "Budi Santoso",
                 photo = "",
-                rating = 4.2f, // Rating existing worker, tapi job ini belum di-rating
+                rating = 4.2, // Rating existing worker, tapi job ini belum di-rating
                 ratingCount = 5,
                 location = "Bekasi",
                 experience = "Pemasangan keramik dan perbaikan atap",
@@ -597,7 +628,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 workerId = "worker_2",
                 name = "Agus Purnomo",
                 photo = "",
-                rating = 4.5f,
+                rating = 4.5,
                 ratingCount = 8,
                 location = "Jakarta Timur",
                 experience = "Renovasi dan pengecatan",
@@ -610,7 +641,7 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 workerId = "worker_3",
                 name = "Slamet Riyadi",
                 photo = "",
-                rating = 4.8f,
+                rating = 4.8,
                 ratingCount = 12,
                 location = "Bekasi Timur",
                 experience = "Instalasi listrik dan perbaikan",
@@ -629,10 +660,10 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 workerId = "worker_4",
                 workerName = "Ahmad Wijaya",
                 workerPhoto = "",
-                date = dateFormat.format(Date(System.currentTimeMillis() - 259200000)), // 3 days ago
+                jobDate = dateFormat.format(Date(System.currentTimeMillis() - 259200000)), // 3 days ago
                 description = "Pengecatan tembok rumah",
                 status = "completed",
-                rating = 4.5f,
+                rating = 4.5,
                 price = 200000,
                 location = "Jakarta Timur"
             ),
@@ -640,10 +671,10 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 workerId = "worker_5",
                 workerName = "Dedi Cahyono",
                 workerPhoto = "",
-                date = dateFormat.format(Date(System.currentTimeMillis() - 345600000)), // 4 days ago
+                jobDate = dateFormat.format(Date(System.currentTimeMillis() - 345600000)), // 4 days ago
                 description = "Perbaikan instalasi listrik",
                 status = "completed",
-                rating = 5.0f,
+                rating = 5.0,
                 price = 250000,
                 location = "Bekasi Barat"
             ),
@@ -651,10 +682,10 @@ class CustomerDashboardActivity : AppCompatActivity() {
                 workerId = "worker_6",
                 workerName = "Eko Prasetyo",
                 workerPhoto = "",
-                date = dateFormat.format(Date(System.currentTimeMillis() - 432000000)), // 5 days ago
+                jobDate = dateFormat.format(Date(System.currentTimeMillis() - 432000000)), // 5 days ago
                 description = "Pembuatan rak buku custom",
                 status = "completed",
-                rating = 4.0f,
+                rating = 4.0,
                 price = 180000,
                 location = "Jakarta Selatan"
             )
@@ -674,10 +705,10 @@ class CustomerDashboardActivity : AppCompatActivity() {
             workerId = "worker_1",
             workerName = "Budi Santoso",
             workerPhoto = "",
-            date = SimpleDateFormat("dd MMMM yyyy", Locale("id", "ID")).format(Date()),
+            jobDate = SimpleDateFormat("dd MMMM yyyy", Locale("id", "ID")).format(Date()),
             description = "Test job yang sudah selesai",
             status = "completed",
-            rating = 0.0f, // Belum di-rating
+            rating = 0.0, // Belum di-rating
             price = 200000,
             location = "Jakarta",
             _createdAt = Timestamp.now(),
@@ -802,9 +833,9 @@ class CustomerDashboardActivity : AppCompatActivity() {
             workerId = worker.workerId,
             customerId = currentUserId,
             customerName = currentUserName,
-            rating = rating,
+            rating = rating.toDouble(),
             date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
-            createdAt = Timestamp.now()
+            _createdAt = Timestamp.now()
         )
 
         // Show loading
@@ -1010,9 +1041,9 @@ class CustomerDashboardActivity : AppCompatActivity() {
             workerId = "test_worker_id", // Ganti dengan worker ID yang valid
             customerId = auth.currentUser?.uid ?: "",
             customerName = "Test Customer",
-            rating = 4.5f,
+            rating = 4.5,
             date = SimpleDateFormat("dd MMM yyyy", Locale("id", "ID")).format(Date()),
-            createdAt = Timestamp.now()
+            _createdAt = Timestamp.now()
         )
 
         firestore.collection(COLLECTION_RATINGS)
@@ -1227,4 +1258,3 @@ class CustomerDashboardActivity : AppCompatActivity() {
     }
 
 }
-

@@ -139,49 +139,77 @@ class RegisterActivity : AppCompatActivity() {
             }
     }
 
-    private fun saveUserToFirestore(customerId: String, customerName: String, phoneNumber: String, email: String) {
-        val userData = hashMapOf<String, Any>(
-            "customerId" to customerId,
-            "customerName" to customerName,
-            "phoneNumber" to phoneNumber,
-            "userType" to selectedUserType.name,
+    private fun saveUserToFirestore(userId: String, userName: String, phoneNumber: String, email: String) {
+        // Base data yang sama untuk kedua user type
+        val baseData = hashMapOf<String, Any>(
             "createdAt" to com.google.firebase.Timestamp.now(),
             "updatedAt" to com.google.firebase.Timestamp.now(),
             "isActive" to true
         )
 
-        // Tambahkan field khusus berdasarkan tipe user
+        val userData: HashMap<String, Any>
+        val collectionName: String
+
         if (selectedUserType == UserType.WORKER) {
-            // GENERATE UNIQUE WORKER ID
+            // STRUKTUR DATA UNTUK WORKER - SESUAI DENGAN Worker MODEL
             val workerId = generateWorkerUniqueId(phoneNumber)
 
-            userData["workerId"] = workerId // Tambahkan field id untuk Worker model
-            userData["email"] = email // Tambahkan email untuk Worker model
-            userData["phone"] = phoneNumber // Tambahkan phone untuk Worker model
-            userData["location"] = "" // Sesuai dengan Worker model
-            userData["experience"] = "" // Sesuai dengan Worker model
-            userData["skills"] = arrayListOf<String>()
-            userData["rating"] = 0.0
-            userData["ratingCount"] = 0 // Tambahkan ratingCount
-            userData["totalJobs"] = 0
-            userData["completedJobs"] = 0
-            userData["isAvailable"] = true
-            userData["hourlyRate"] = 0.0
-            userData["price"] = 0L // Sesuai dengan Worker model (Long)
-            userData["profileImageUrl"] = ""
-            userData["photo"] = "" // Sesuai dengan Worker model
-            userData["description"] = ""
+            userData = hashMapOf(
+                // Field sesuai dengan Worker model
+                "workerId" to workerId,           // ✅ Konsisten dengan Worker model
+                "name" to userName,               // ✅ Konsisten dengan Worker model
+                "email" to email,                 // ✅ Konsisten dengan Worker model
+                "phone" to phoneNumber,           // ✅ Konsisten dengan Worker model
+                "phoneNumber" to phoneNumber,     // ✅ Untuk kompatibilitas
+                "location" to "",                 // ✅ Sesuai Worker model
+                "experience" to "",               // ✅ Sesuai Worker model
+                "price" to 0L,                    // ✅ Sesuai Worker model (Long)
+                "photo" to "",                    // ✅ Sesuai Worker model
+                "rating" to 0.0,                  // ✅ Sesuai Worker model
+                "ratingCount" to 0,               // ✅ Sesuai Worker model
+                "isAvailable" to true,            // ✅ Sesuai Worker model
+                "jobDate" to "",                  // ✅ Sesuai Worker model
+                "jobDescription" to "",           // ✅ Sesuai Worker model
+                "userType" to selectedUserType.name,
+                "isAvailable" to true,
+
+                // Field tambahan untuk worker
+                "skills" to arrayListOf<String>(),
+                "totalJobs" to 0,
+                "completedJobs" to 0,
+                "hourlyRate" to 0.0,
+                "profileImageUrl" to "",
+                "description" to ""
+            )
+
+            // Tambahkan base data
+            userData.putAll(baseData)
+            collectionName = "workers"
+
+            // Simpan worker ID ke preferences
+            prefManager.setString("worker_id", workerId)
+
         } else {
-            userData["totalOrders"] = 0
-            userData["completedOrders"] = 0
-            userData["profileImageUrl"] = ""
-            userData["address"] = ""
+            // STRUKTUR DATA UNTUK CUSTOMER
+            userData = hashMapOf(
+                "customerId" to userId,           // ✅ Untuk customer
+                "customerName" to userName,       // ✅ Untuk customer
+                "phoneNumber" to phoneNumber,     // ✅ Untuk customer
+                "userType" to selectedUserType.name,
+                "totalOrders" to 0,
+                "completedOrders" to 0,
+                "profileImageUrl" to "",
+                "address" to ""
+            )
+
+            // Tambahkan base data
+            userData.putAll(baseData)
+            collectionName = "customers"
         }
 
-        val collectionName = if (selectedUserType == UserType.CUSTOMER) "customers" else "workers"
-
+        // Simpan ke Firestore
         firestore.collection(collectionName)
-            .document(customerId)
+            .document(userId)
             .set(userData, SetOptions.merge())
             .addOnSuccessListener {
                 showLoading(false)
@@ -189,15 +217,9 @@ class RegisterActivity : AppCompatActivity() {
                 // Simpan informasi pengguna ke preferensi lokal
                 prefManager.setUserLoggedIn(true)
                 prefManager.setUserType(selectedUserType.name)
-                prefManager.setString("user_id", customerId)
-                prefManager.setString("user_name", customerName)
+                prefManager.setString("user_id", userId)
+                prefManager.setString("user_name", userName)
                 prefManager.setString("user_phone", phoneNumber)
-
-                // SIMPAN WORKER ID JIKA USER ADALAH WORKER
-                if (selectedUserType == UserType.WORKER) {
-                    val workerId = generateWorkerUniqueId(phoneNumber)
-                    prefManager.setString("worker_id", workerId)
-                }
 
                 Toast.makeText(this, "Registrasi berhasil!", Toast.LENGTH_SHORT).show()
 
